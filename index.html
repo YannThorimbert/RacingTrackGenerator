@@ -13,12 +13,21 @@ Your browser does not support the HTML5 canvas tag.</canvas>
     var ctx = c.getContext("2d");
     ctx.beginPath();
 
+    var seed = 193;
+    function rand(){ //fake rand
+        var x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+    }
+    function rand(){
+        return Math.random();
+    }
+
     function random_choice(a){
-        return a[Math.floor(Math.random() * a.length)];
+        return a[Math.floor(rand() * a.length)];
     }
 
     function get_rand(m,M){
-        return m + Math.random() * (M-m);
+        return m + rand() * (M-m);
     }
 
     function compute_distance(p1, p2){
@@ -26,6 +35,11 @@ Your browser does not support the HTML5 canvas tag.</canvas>
     }
 
     function compute_distance_point_line(x, y, q){
+        var P = get_nearest_point_on_line([x,y], q);
+        return compute_distance(P, [x,y]);
+    }
+
+    function compute_distance_point_line2(x, y, q){
         var dx = q[2] - q[0];
         var dy = q[3] - q[1];
         if (dx == 0){
@@ -34,7 +48,6 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         else{
             var a = dy / dx;
             var b = q[1] - a*q[0];
-            console.log(a, b)
             return Math.abs(y - a*x - b) / Math.sqrt(1 + a*a);
         }
     }
@@ -76,6 +89,49 @@ Your browser does not support the HTML5 canvas tag.</canvas>
                 Math.sin(delta)*v[0]+Math.cos(delta)*v[1]];
     }
 
+    function control_collisions(){
+        var mll = MARGIN_LINE_LINE;
+        var mcl = MARGIN_CURVE_LINE;
+        var mcc = MARGIN_CURVE_CURVE;
+        MARGIN_LINE_LINE = 0;
+        MARGIN_CURVE_LINE = 0;
+        MARGIN_CURVE_CURVE = 0;
+        for(var i=0; i<track_history.length; i++){
+            what = track_history[i];
+            var collide;
+            if(what[0] == "curve"){
+                if (what[1] < MIN_CURVE_RADIUS)
+                    return true;
+                // console.log("CONTROLLING curve", i, what[1]);
+                collide = check_self_collisions_curve(what, i, true);
+            }
+            else{
+                console.log("CONTROLLING line", i, what[1]);
+                collide = check_self_collisions_straight(what, i, true);
+            }
+            if(collide>=0 && collide != (i+1)%track_history.length){
+                var what2 = track_history[collide];
+                if(what[0] == "curve" && what2[0] == "straight"){
+                    console.log("Collision", what[0], i, track_history[collide][0],collide);
+                    return true;
+                }
+                else if(what[0] == "straight" && what2[0] == "curve"){
+                    console.log("Collision", what[0], i, track_history[collide][0],collide);
+                    return true;
+                }
+                else if(what[0] == "straight" && what2[0] == "straight"){
+                    console.log("Collision", what[0], i, track_history[collide][0],collide);
+                    return true;
+                }
+
+            }
+        }
+        MARGIN_LINE_LINE = mll;
+        MARGIN_CURVE_LINE = mcl;
+        MARGIN_CURVE_CURVE = mcc;
+        return false;
+    }
+
     function make_straight(length){
         var new_x = x + current_orientation[0] * length;
         var new_y = y + current_orientation[1] * length;
@@ -87,10 +143,11 @@ Your browser does not support the HTML5 canvas tag.</canvas>
     }
 
     function check_line_line_collision(qf, qg){ //f is the newly created straight
-        var d1 = compute_distance_point_line([qf[0],qf[1]], qg);
-        var d2 = compute_distance_point_line([qf[2],qf[3]], qg);
-        if(d1 < MARGIN_LINE_LINE || d2 < MARGIN_LINE_LINE)
+        var d1 = compute_distance_point_line(qf[0],qf[1], qg);
+        var d2 = compute_distance_point_line(qf[2],qf[3], qg);
+        if(d1 < MARGIN_LINE_LINE || d2 < MARGIN_LINE_LINE){
             return compute_min_dist_segments(qf, qg) < MARGIN_LINE_LINE;
+        }
         var f = [qf[2]-qf[0], qf[3]-qf[1]];
         var g = [qg[2]-qg[0], qg[3]-qg[1]];
         var min_f_y = Math.min(qf[1], qf[3]);
@@ -123,9 +180,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
             return false;
         var x_col = (qg[1] - qf[1] + sf*qf[0] - sg*qg[0]) / (sf - sg);
         if(x_col >= min_f_x && x_col <= max_f_x){
-            return true;
-            // var y_col = sf*x_col + qf[1] - sf*qf[0];
-            // return y_col >= min_f_y && y_col <= max_f_y;
+            return x_col >= min_g_x && x_col <= max_g_x;
         }
         return false;
     }
@@ -134,64 +189,168 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         return compute_distance(c1, c2) <= r1 + r2 + MARGIN_CURVE_CURVE;
     }
 
-    function check_curve_line_collision(c, r, q){
-        var d = compute_distance_point_line(c[0],c[1], q);
-        if(d <= r){
-            var D = [q[2]-q[0], q[3]-q[1]];
-            var min_y = Math.min(q[1],q[3]);
-            var max_y = Math.max(q[1],q[3]);
-            if(D[0] == 0){
-                return c[1] >= min_y && c[1] <= max_y;
-            }
-            var R = D[1]/D[0];
-            var y = c[1] + d / Math.sqrt(1 + R*R);
-            return y >= min_y && y <= max_y;
+    function get_nearest_point_on_line(p, q){
+        var qx = q[2] - q[0];
+        var qy = q[3] - q[1];
+        var px = p[0] - q[0];
+        var py = p[1] - q[1];
+        var slope = qx / qy; //inverse of slope actually, but doesnt matter
+        var Iy = (py + slope*px - 1) / (slope*slope);
+        var Ix = slope * Iy;
+        Ix += q[0];
+        Iy += q[1];
+        return [Ix,Iy];
+    }
+
+    // old version not taking arc into acount
+    function check_curve_line_collision_security(c, r, q){
+        var d1 = compute_distance(c,[q[0],q[1]]);
+        var d2 = compute_distance(c,[q[2],q[3]]);
+        if (d1 <= r + MARGIN_CURVE_LINE || d2 <= r + MARGIN_CURVE_LINE)
+            return true;
+        var P = get_nearest_point_on_line(c, q);
+        var distance = compute_distance(P, c);
+        if(distance <= r + MARGIN_CURVE_LINE){
+            var min_y = Math.min(q[1],q[3]); //min y coordinate
+            var max_y = Math.max(q[1],q[3]); //max y coordinate
+            return P[1] >= min_y && P[1] <= max_y;
         }
         else{
             return false;
         }
     }
 
-    function check_self_collisions_straight(straight){
+    // function check_curve_line_collision(curve, q){
+    //     var r = curve[1];
+    //     var side = curve[2];
+    //     var delta_angle = curve[3];
+    //     var c = curve[4];
+    //     var start_angle = curve[5];
+    //     var final_angle = start_angle;
+    //     if(side>0)
+    //         final_angle -= delta_angle;
+    //     else
+    //         final_angle += delta_angle;
+    //     var d = compute_distance_point_line(c[0],c[1], q);
+    //     if(r == 0)
+    //         return d <= r + MARGIN_CURVE_LINE;
+    //     // if(true){
+    //     if(d <= r + MARGIN_CURVE_LINE){
+    //         var x1 = q[0] - c[0];
+    //         var y1 = q[1] - c[1];
+    //         var x2 = q[2] - c[0];
+    //         var y2 = q[3] - c[1];
+    //         var dx = x2 - x1;
+    //         var dy = y2 - y1;
+    //         if(dx == 0){
+    //             throw "not implemented";
+    //         }
+    //         else{ //below, everything is translated by -c.
+    //             var slope = dy / dx;
+    //             var yint = y1 - slope*x1;
+    //             var A = 1 + slope*slope;
+    //             var B = 2*slope*yint;
+    //             var C = yint*yint - r*r;
+    //             var delta = B*B - 4*A*C;
+    //             if(delta < 0)
+    //                 return false;
+    //             var x_col1 = (-B + Math.sqrt(delta))/(2*A);
+    //             var y_col1 = slope*x_col1 + yint;
+    //             var d1 = compute_norm([x_col1,y_col1]);
+    //             // console.log("****", d1, r);
+    //             //by symmetry, d1 = d2
+    //             var x_col2 = (-B - Math.sqrt(delta))/(2*A);
+    //             var y_col2 = slope*x_col2 + yint;
+    //             if(d1 > r + MARGIN_CURVE_LINE)
+    //                 return false;
+    //             else{ // then we still have to check the angle
+    //                 var v0 = [1,0];
+    //                 var v1 = [x_col1, y_col1];
+    //                 var a1 = compute_relative_angle(v0, v1);
+    //                 // console.log("ANGLE",a1,start_angle,final_angle);
+    //                 if(a1 >= start_angle && a2 <= final_angle){
+    //                     return true;
+    //                 }
+    //                 var v2 = [x_col2,y_col2];
+    //                 var a2 = compute_relative_angle(v0, v2);
+    //                 if(a2 >= start_angle && a2 <= final_angle){
+    //                     return true;
+    //                 }
+    //                 return check_curve_line_collision_security(c,r,q);
+    //             }
+    //         }
+    //     }
+    //     else{
+    //         return false;
+    //     }
+    // }
+
+    function check_self_collisions_straight(straight, current_i, finished){
         var qf = straight[2]; //straight that is candidate to be included
         if(qf.length != 4)
             throw "problem"
+        var previous_i = current_i-1;
+        if(previous_i < 0)
+            previous_i = track_history.length-1;
         for(var i=0; i<track_history.length; i++){
-            var what = track_history[i];
-            if( what[0] == "straight" && i!=track_history.length-1){
-                var qg = what[2];
-                return check_line_line_collision(qf,qg);
-            }
-            else{
-                var c1 = what[4];
-                var r1 = what[1];
-                return check_curve_line_collision(c1,r1,qf);
-            }
-        }
-        return false;
+            if (i != previous_i && i != current_i){
+                var should_check = true;
+                if(finished && i == (current_i+1)%track_history.length)
+                    should_check = false;
+                if (should_check){
+                    var what = track_history[i];
+                    if( what[0] == "straight"){
+                        var qg = what[2];
+                        console.log("       against line", i);
+                        var result = check_line_line_collision(qf,qg);
+                    }
+                    else{
+                        // if(check_curve_line_collision(what,qf))
+                        var result = check_curve_line_collision_security(what[4],what[1],qf);
+                    }
+                    if(result)
+                        return i;
+                }//end should check
+            } //end if previous
+        }//end for i
+        return -1;
     }
 
-    function check_self_collisions_curve(curve){
+    function check_self_collisions_curve(curve, current_i, finished){
         var r1 = curve[1];
         var c1 = curve[4];
+        var previous_i = current_i-1;
+        if(previous_i < 0)
+            previous_i = track_history.length-1;
         for(var i=0; i<track_history.length; i++){
-            var what = track_history[i];
-            if( what[0] == "curve" && i!=track_history.length-1){
-                var r2 = what[1];
-                var c2 = what[4];
-                if(check_curve_curve_collision(r1,c1,r2,c2))
-                    return true;
-            }
-            else{
-                var q = what[2];
-                return check_curve_line_collision(c1,r1,q);
+            if(i != previous_i && i != current_i){
+                var should_check = true;
+                if(finished && i == (current_i+1)%track_history.length)
+                    should_check = false;
+                if (should_check){
+                    var what = track_history[i];
+                    if( what[0] == "curve"){
+                        var r2 = what[1];
+                        var c2 = what[4];
+                        if(check_curve_curve_collision(r1,c1,r2,c2))
+                            return i;
+                    }
+                    else{
+                        var q = what[2];
+                        // console.log("   ",i,q);
+                        if(check_curve_line_collision_security(c1,r1,q))
+                            return i;
+                    }
+                }
             }
         }
-        return false;
+        return -1;
     }
 
 
     function make_curve(radius, side, delta_angle){
+        // if(radius >0 && radius < MIN_CURVE_RADIUS)
+        //     throw "forbidden"+radius;
         var a0 = get_current_angle();
         if (side < 0){
             delta_angle *= -1.;
@@ -211,10 +370,10 @@ Your browser does not support the HTML5 canvas tag.</canvas>
             else
                 ctx.arc(cx,cy,radius,a0,a1);
         }
-        new_orientation = get_rotated_vector(current_orientation, delta_angle);
-        new_x = cx + radius*Math.cos(a1);
-        new_y = cy + radius*Math.sin(a1);
-        return [new_x, new_y, new_orientation, [cx,cy]];
+        var new_orientation = get_rotated_vector(current_orientation, delta_angle);
+        var new_x = cx + radius*Math.cos(a1);
+        var new_y = cy + radius*Math.sin(a1);
+        return [new_x, new_y, new_orientation, [cx,cy], -a0];
     }
 
     function compute_first_orientation(th){
@@ -285,12 +444,13 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         var new_orientation = [];
         var to_insert;
         var collision;
+        var current_i = track_history.length;
         if(what == "straight"){
             var length = get_rand(MIN_STRAIGTH_LENGTH, MAX_STRAIGTH_LENGTH);
             new_pos = make_straight(length);
             new_orientation = current_orientation;
             to_insert = ["straight", length, new_pos];
-            collision = check_self_collisions_straight(to_insert);
+            collision = check_self_collisions_straight(to_insert, current_i, false);
         }
         else if(what == "curve"){
             var radius = get_rand(MIN_CURVE_RADIUS, MAX_CURVE_RADIUS);
@@ -301,11 +461,12 @@ Your browser does not support the HTML5 canvas tag.</canvas>
             new_pos[1] = data[1];
             new_orientation = data[2];
             var center = data[3];
-            to_insert = ["curve", radius, side, delta_angle, center];
-            collision = check_self_collisions_curve(to_insert);
+            var start_angle = data[4];
+            to_insert = ["curve", radius, side, delta_angle, center, start_angle];
+            collision = check_self_collisions_curve(to_insert, current_i, false);
         }
         var in_canvas = is_in_canvas(new_pos, MAX_CURVE_RADIUS + MARGIN_BORDER);
-        if(in_canvas && !collision){
+        if(in_canvas && collision<0){
             console.log("(nx,ny)=",new_pos);
             x = new_pos[0];
             y = new_pos[1];
@@ -335,7 +496,9 @@ Your browser does not support the HTML5 canvas tag.</canvas>
             y = data[1];
             current_orientation = data[2];
             var center = data[3];
-            track_history.splice(i,0,["curve", what[1], what[2], what[3], center]);
+            var start_angle = data[4];
+            track_history.splice(i,0,["curve", what[1], what[2], what[3],
+                                        center, start_angle]);
         }
     }
 
@@ -380,6 +543,8 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         var min_length = Math.min(b_L,a_L);
         var r = get_rand(SMOOTH_MIN_RADIUS_FACTOR*min_length,
                             SMOOTH_MAX_RADIUS_FACTOR*min_length)
+        if(r < MIN_CURVE_RADIUS)
+            return false;
         var vP = [bissection[0]*r, bissection[1]*r];
         var P = [cx + vP[0], cy + vP[1]]; //new curve center
         ////////////////////////////////////////////////////////////////////////
@@ -417,16 +582,17 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         }
         angle = PI - angle;
         curve[3] = angle;
+        return true;
     }
 
-    function random_section(){
+    function random_section(n){
         add_to_track(["curve", 0, PI/2, get_rand(MIN_CURVE_ANGLE, PI/4)], "end");
         add_to_track(["straight", get_rand(MIN_STRAIGTH_LENGTH, MAX_STRAIGTH_LENGTH)], "end");
-        for(var k=0; k<8; k++){
+        for(var k=0; k<n; k++){
             update_track();
         }
         var angle = random_choice([-PI/2,PI/2]);
-        add_to_track(["curve", get_rand(MIN_CURVE_RADIUS,MAX_CURVE_RADIUS), angle, get_rand(PI*0.6,PI*0.6)], "end");
+        add_to_track(["curve", get_rand(MIN_CURVE_RADIUS, 2*MIN_CURVE_RADIUS), angle, get_rand(PI*0.6,PI*0.6)], "end");
         add_to_track(["straight", get_rand(MIN_STRAIGTH_LENGTH, MAX_STRAIGTH_LENGTH)], "end");
     }
 
@@ -441,15 +607,16 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 
     // 1. Generate a base shape ////////////////////////////////////////////////
     var nstart = 3;
+    var N_RANDOM_SECTION = 1;
     var delta_angle = PI * 2. / nstart;
     var dR = 0.6;
     var dA = 0.25;
     // var dR = 0.;
     // var dA = 0.;
-    var R = 100;
+    var R = 150;
     var MAX_STRAIGTH_LENGTH = R/3;
     var MIN_STRAIGTH_LENGTH = R/10;
-    var MIN_CURVE_RADIUS = R/6;
+    var MIN_CURVE_RADIUS = R/20;
     var MAX_CURVE_RADIUS = R;
     var MIN_CURVE_ANGLE = PI/10;
     var MAX_CURVE_ANGLE = 0.75*PI;
@@ -458,9 +625,10 @@ Your browser does not support the HTML5 canvas tag.</canvas>
     // var SMOOTH_MIN_RADIUS_FACTOR = 0.5;
     // var SMOOTH_MAX_RADIUS_FACTOR = 0.5;
 
-    var MARGIN_LINE_LINE = 40;
-    var MARGIN_CURVE_CURVE = 40;
-    var MARGIN_BORDER = 40;
+    var MARGIN_LINE_LINE = R/10;
+    var MARGIN_CURVE_CURVE = R/10;
+    var MARGIN_BORDER = R/10;
+    var MARGIN_CURVE_LINE = R/10;
 
     function generate_track(){
         track_history = [];
@@ -480,32 +648,39 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         x = START[0];
         y = START[1];
         for(var i=0; i<nstart-1; i++){
-            random_section();
+            random_section(N_RANDOM_SECTION);
             var s = ["osef","osef",[x,y,points[i+1][0],points[i+1][1]]];
-            if(check_self_collisions_straight(s))
+            if(check_self_collisions_straight(s,track_history.length)>0,false)
                 return false;
             link_points([x,y], points[i+1], "end");
         }
         var s = ["osef","osef",[points[nstart-1][0],points[nstart-1][1],points[0][0],points[0][1]]];
-        if(check_self_collisions_straight(s))
+        if(check_self_collisions_straight(s,track_history.length)>0,false)
             return false;
         link_points(points[nstart-1], points[0], "end");
         // 3. Smooth radius 0 corners //////////////////////////////////////////
-        smooth_corner(0, "auto");
+        if(!smooth_corner(0, "auto"))
+            return false;
         for(var i=1; i<track_history.length-1; i++){ //dont smooth first and last corners
             if (track_history[i][0] == "curve"){
                 if(track_history[i][1] == 0){
-                    console.log("smooth",i);
-                    smooth_corner(i, "none");
+                    if(!smooth_corner(i, "none"))
+                        return false;
                 }
             }
         }
         return true;
     }
 
-    var t = false;
-    while (!t){
-        t = generate_track();
+    for(var i=0; i<1000; i++){
+        var t = generate_track();
+        if(t){
+            var ci = control_collisions();
+            if (!ci){
+                console.log("Track generated after", i, "trials");
+                break;
+            }
+        }
     }
     if(t){
         draw_track(track_history);
@@ -513,20 +688,41 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         // for(var i =0;i<points.length;i++)
         //     ctx.fillRect(points[i][0], points[i][1], 3,3);
         console.log("Number of track elements = ", track_history.length);
+
+        // a = [291.97358524848494, 447.65369477247265, 143.052872449705, 454.1684666593738]
+        // b = [[111.39R/10955515698, 271.6919428149734, 97.61969R/106926769, 244.44794294659837]]
+        // console.log("ALLO",check_line_line_collision(a,b));
     }
+    else
+        console.log("FAIL");
+
+
     //TODO: controle post-generation des collisions
 
     //TODO: pk curve_line marche tj pas ?
     //TODO: rajouter margin a curve line
 
-    //TODO: parametriser longueur des random section
-    //TODO: favoriser les angles clockwise d'un certain facteur pour defavoriser les huit
-    //TODO: heuristique : interdire de se rapprocher trop du centre du polygone de base
+    //TODO: parametriser longueur des random section : petites random sections et grand polygone de base
+    //TODO: vecteur de "force" (proba gaussienne centre sur un angle) qui va de la bissectrice en debut de sections
+        // au vecteur colineaire en fin de section
+        //TODO: favoriser les angles clockwise d'un certain facteur pour defavoriser les huit
+        //TODO: heuristique : interdire de se rapprocher trop du centre du polygone de base
     //TODO: au moment du smooth, si ca implique une courbure trop petite, rajouter au bol des virages+droites ;
     // ou plutot, si point trop pres du prochain point cible, refaire un petit random section
 
     //TODO: distributions et sequences (chicanes, spirales, anguleux, serpent)
 
+    // var curve = ["curve", 12.18985460035624, -1.5707963267948966, 1.8849555921538759,  [345.0413652254319, 142.54462612160933], 2.022236281664257]
+    // var q = [352.31352454920204, 132.5082127846646, 392.4909932323976, 240.1428550953982];
+    //
+    // ctx.lineWidth = "1";
+    // ctx.arc(345.0413652254319, 142.54462612160933,12.18985460035624,0,2*PI);
+    // ctx.stroke();
+    // ctx.fillRect(q[0],q[1],5,5);
+    // ctx.fillRect(q[2],q[3],5,5);
+    // console.log(check_curve_line_collision(curve,q))
+    console.log("SEED",seed);
+    control_collisions();
 </script>
 
 </body>

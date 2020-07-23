@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<canvas id="myCanvas" width="600" height="600" style="border:1px solid #d3d3d3;">
+Your browser does not support the HTML5 canvas tag.</canvas>
+
+<script>
+    var PI = Math.PI;
+    var c = document.getElementById("myCanvas");
+    var W = c.width;
+    var H = c.height;
+    var ctx = c.getContext("2d");
+    ctx.beginPath();
+
+    var seed = 102223;
+    function rand(){ //fake rand
+        var x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+    }
+    // function rand(){
+    //     return Math.random();
+    // }
+
+    function random_choice(a){
+        return a[Math.floor(rand() * a.length)];
+    }
+
+    function get_rand(m,M){
+        return m + rand() * (M-m);
+    }
+
+    function compute_distance(p1, p2){
+        return Math.hypot(p1[0]-p2[0], p1[1]-p2[1]);
+    }
+
+    function compute_distance_point_line(x, y, q){
+        var P = get_nearest_point_on_line([x,y], q);
+        return compute_distance(P, [x,y]);
+        // var dx = q[2] - q[0];
+        // var dy = q[3] - q[1];
+        // if (dx == 0){
+        //     return Math.abs(q[0] - x);
+        // }
+        // else{
+        //     var a = dy / dx;
+        //     var b = q[1] - a*q[0];
+        //     return Math.abs(y - a*x - b) / Math.sqrt(1 + a*a);
+        // }
+    }
+
+    function compute_min_dist_segments(q1, q2){
+        var a = compute_distance([q1[0], q1[1]], [q2[0], q2[1]]);
+        var b = compute_distance([q1[0], q1[1]], [q2[2], q2[3]]);
+        var c = compute_distance([q1[2], q1[3]], [q2[0], q2[1]]);
+        var d = compute_distance([q1[2], q1[3]], [q2[2], q2[3]]);
+        return Math.min(a,b,c,d);
+    }
+
+    function get_current_angle(){
+        return Math.atan2(current_orientation[1],current_orientation[0]);
+    }
+
+    function compute_norm(v){
+        return Math.sqrt(v[0]*v[0] + v[1]*v[1]);
+    }
+
+    function get_normalized(v){
+        var L = compute_norm(v);
+        return [v[0]/L, v[1]/L];
+    }
+
+    function compute_relative_angle(v1,v2){
+        var Lv1 = compute_norm(v1);
+        var Lv2 = compute_norm(v2);
+        var cos_t = (v1[0]*v2[0] + v1[1]*v2[1]) / (Lv1*Lv2);
+        var det = v1[0]*v2[1] - v1[1]*v2[0];
+        var sign = 1.;
+        if(det > 0)
+            sign = -1.;
+        return sign * Math.acos(cos_t);
+    }
+
+    function get_rotated_vector(v, delta){
+        return [Math.cos(delta)*v[0]-Math.sin(delta)*v[1],
+                Math.sin(delta)*v[0]+Math.cos(delta)*v[1]];
+    }
+
+    function control_collisions(){
+        var mll = MARGIN_LINE_LINE;
+        var mcl = MARGIN_CURVE_LINE;
+        var mcc = MARGIN_CURVE_CURVE;
+        MARGIN_LINE_LINE = 0;
+        MARGIN_CURVE_LINE = 0;
+        MARGIN_CURVE_CURVE = 0;
+        for(var i=0; i<track_history.length; i++){
+            what = track_history[i];
+            var collide;
+            if(what[0] == "curve"){
+                console.log("CONTROLLING curve", i, what[1]);
+                collide = check_self_collisions_curve(what, i)
+            }
+            else{
+                collide = check_self_collisions_straight(what, i);
+            }
+            if(collide>0 && collide != (i+1)%track_history.length){
+                var what2 = track_history[collide];
+                if(what[0] == "curve" && what2[0] == "straight"){
+                    console.log("Collision", what[0], i, track_history[collide][0],collide);
+                    return true;
+                }
+                else if(what[0] == "straight" && what2[0] == "straight"){
+                    console.log("Collision", what[0], i, track_history[collide][0],collide);
+                    return true;
+                }
+
+            }
+        }
+        MARGIN_LINE_LINE = mll;
+        MARGIN_CURVE_LINE = mcl;
+        MARGIN_CURVE_CURVE = mcc;
+        return false;
+    }
+
+    function make_straight(length){
+        var new_x = x + current_orientation[0] * length;
+        var new_y = y + current_orientation[1] * length;
+        if(drawing){
+            ctx.moveTo(x,y);
+            ctx.lineTo(new_x, new_y);
+        }
+        return [new_x, new_y, x, y];
+    }
+
+    function check_line_line_collision(qf, qg){ //f is the newly created straight
+        var d1 = compute_distance_point_line(qf[0],qf[1], qg);
+        var d2 = compute_distance_point_line(qf[2],qf[3], qg);
+        if(d1 < MARGIN_LINE_LINE || d2 < MARGIN_LINE_LINE){
+            return compute_min_dist_segments(qf, qg) < MARGIN_LINE_LINE;
+        }
+        var f = [qf[2]-qf[0], qf[3]-qf[1]];
+        var g = [qg[2]-qg[0], qg[3]-qg[1]];
+        var min_f_y = Math.min(qf[1], qf[3]);
+        var max_f_y = Math.max(qf[1], qf[3]);
+        var min_f_x = Math.min(qf[0], qf[2]);
+        var max_f_x = Math.max(qf[0], qf[2]);
+        var min_g_y = Math.min(qg[1], qg[3]);
+        var max_g_y = Math.max(qg[1], qg[3]);
+        var min_g_x = Math.min(qg[0], qg[2]);
+        var max_g_x = Math.max(qg[0], qg[2]);
+        if(f[0] == 0){ //f has infinite slope
+            if(g[1] == 0){
+                return qg[1] <= max_f_y && qg[1] >= min_f_y;
+            }
+            else{ //invert x and y
+                return true; //TODO, meanwhile lets pretend its a collision
+            }
+        }
+        else if(g[0] == 0){ //g has infinite slope
+            if(f[1] == 0){
+                return qf[1] <= max_g_y && qf[1] >= min_g_y;
+            }
+            else{ //invert x and y
+                return true; //TODO, meanwhile lets pretend its a collision
+            }
+        }
+        var sf = f[1] / f[0];
+        var sg = g[1] / g[0];
+        if(sf == sg) //parallel lines (or colinear)
+            return false;
+        var x_col = (qg[1] - qf[1] + sf*qf[0] - sg*qg[0]) / (sf - sg);
+        if(x_col >= min_f_x && x_col <= max_f_x){
+            return x_col >= min_g_x && x_col <= max_g_x;
+        }
+        return false;
+    }
+
+    function check_curve_curve_collision(r1, c1, r2, c2){
+        return compute_distance(c1, c2) <= r1 + r2 + MARGIN_CURVE_CURVE;
+    }
+
+    function get_nearest_point_on_line(p, q){
+        var qx = q[2] - q[0];
+        var qy = q[3] - q[1];
+        var px = p[0] - q[0];
+        var py = p[1] - q[1];
+        var slope = qx / qy; //inverse of slope actually, but doesnt matter
+        var Iy = (py + slope*px - 1) / (slope*slope);
+        var Ix = slope * Iy;
+        Ix += q[0];
+        Iy += q[1];
+        return [Ix,Iy];
+    }
+
+    // old version not taking arc into acount
+    function check_curve_line_collision_security(c, r, q){
+        var d1 = compute_distance(c,[q[0],q[1]]);
+        var d2 = compute_distance(c,[q[2],q[3]]);
+        if (d1 <= r + MARGIN_CURVE_LINE || d2 <= r + MARGIN_CURVE_LINE)
+            return true;
+        var P = get_nearest_point_on_line(c, q);
+        var distance = compute_distance(P, c);
+        if(distance <= r + MARGIN_CURVE_LINE){
+            var min_y = Math.min(q[1],q[3]); //min y coordinate
+            var max_y = Math.max(q[1],q[3]); //max y coordinate
+            return P[1] >= min_y && P[1] <= max_y;
+        }
+        else{
+            return false;
+        }
+    }
+
+    function check_curve_line_collision(curve, q){
+        var r = curve[1];
+        var side = curve[2];
+        var delta_angle = curve[3];
+        var c = curve[4];
+        var start_angle = curve[5];
+        var final_angle = start_angle;
+        if(side>0)
+            final_angle -= delta_angle;
+        else
+            final_angle += delta_angle;
+        var d = compute_distance_point_line(c[0],c[1], q);
+        if(r == 0)
+            return d <= r + MARGIN_CURVE_LINE;
+        // if(true){
+        if(d <= r + MARGIN_CURVE_LINE){
+            var x1 = q[0] - c[0];
+            var y1 = q[1] - c[1];
+            var x2 = q[2] - c[0];
+            var y2 = q[3] - c[1];
+            var dx = x2 - x1;
+            var dy = y2 - y1;
+            if(dx == 0){
+                throw "not implemented";
+            }
+            else{ //below, everything is translated by -c.
+                var slope = dy / dx;
+                var yint = y1 - slope*x1;
+                var A = 1 + slope*slope;
+                var B = 2*slope*yint;
+                var C = yint*yint - r*r;
+                var delta = B*B - 4*A*C;
+                if(delta < 0)
+                    return false;
+                var x_col1 = (-B + Math.sqrt(delta))/(2*A);
+                var y_col1 = slope*x_col1 + yint;
+                var d1 = compute_norm([x_col1,y_col1]);
+                // console.log("****", d1, r);
+                //by symmetry, d1 = d2
+                var x_col2 = (-B - Math.sqrt(delta))/(2*A);
+                var y_col2 = slope*x_col2 + yint;
+                if(d1 > r + MARGIN_CURVE_LINE)
+                    return false;
+                else{ // then we still have to check the angle
+                    var v0 = [1,0];
+                    var v1 = [x_col1, y_col1];
+                    var a1 = compute_relative_angle(v0, v1);
+                    // console.log("ANGLE",a1,start_angle,final_angle);
+                    if(a1 >= start_angle && a2 <= final_angle){
+                        return true;
+                    }
+                    var v2 = [x_col2,y_col2];
+                    var a2 = compute_relative_angle(v0, v2);
+                    if(a2 >= start_angle && a2 <= final_angle){
+                        return true;
+                    }
+                    return check_curve_line_collision_security(c,r,q);
+                }
+            }
+        }
+        else{
+            return false;
+        }
+    }
+
+
+q1 = [290.8431081351693, 565.1337358075122, 217.18540567155648, 303.4285523716361]
+q2 = [424.49916960205434, 294.9458689953737, 262.51296829261156, 519.0522631042724]
+
+ctx.beginPath();
+ctx.moveTo(q1[0],q1[1]);
+ctx.lineTo(q1[2],q1[3]);
+ctx.moveTo(q2[0],q2[1]);
+ctx.lineTo(q2[2],q2[3]);
+ctx.stroke();
+MARGIN_LINE_LINE = 0;
+console.log(check_line_line_collision(q2,q1));
+
+//
+//
+// c = [100.50066499677393, 192.72020703561614]
+// r = 25.57124270035672
+// ctx.arc(c[0],c[1],r,0,2*PI);
+// ctx.stroke();
+//
+// // q = [123.12392236874535, 169.5928947414722, 317.1029413112409, 188.92772872755535]
+//
+// q = [115.12392236874535, 169.5928947414722, 317.1029413112409, 188.92772872755535]
+//
+// // ctx.beginPath();
+// ctx.moveTo(q[0],q[1]);
+// ctx.lineTo(q[2],q[3]);
+// ctx.stroke();
+//
+// MARGIN_CURVE_LINE = 0;
+//
+// // console.log(check_curve_line_collision(["curve",r,1,PI/10,c,0], q))
+// console.log(check_curve_line_collision_security(c, r, q))
+
+</script>
+
+</body>
+</html>
