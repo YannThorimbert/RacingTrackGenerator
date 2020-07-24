@@ -36,6 +36,8 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 
     function compute_distance_point_line(x, y, q){
         var P = get_nearest_point_on_line([x,y], q);
+        console.log(P);
+        ctx.fillRect(P[0],P[1],10,10)
         return compute_distance(P, [x,y]);
         // var dx = q[2] - q[0];
         // var dy = q[3] - q[1];
@@ -184,9 +186,9 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         var qy = q[3] - q[1];
         var px = p[0] - q[0];
         var py = p[1] - q[1];
-        var slope = qx / qy; //inverse of slope actually, but doesnt matter
-        var Iy = (py + slope*px - 1) / (slope*slope);
-        var Ix = slope * Iy;
+        var slope = qy / qx; //inverse of slope actually, but doesnt matter
+        var Ix = (qx*px + qy*py) / (qx + qy*slope);
+        var Iy = slope*Ix;
         Ix += q[0];
         Iy += q[1];
         return [Ix,Iy];
@@ -276,17 +278,31 @@ Your browser does not support the HTML5 canvas tag.</canvas>
     }
 
 
-q1 = [290.8431081351693, 565.1337358075122, 217.18540567155648, 303.4285523716361]
-q2 = [424.49916960205434, 294.9458689953737, 262.51296829261156, 519.0522631042724]
+var C = [W/2,H/2];
 
+// console.log(compute_distance_point_line(W/2,H/2, [W/2,H/2+10,W,H/2+10]));
+q = [50,30,W-5,500];
+var a = 1 / compute_distance_point_line(W/2,H/2, q);
+var d = 1 / compute_distance([W/2,H/2],[q[0],q[1]]);
+console.log(Math.min(100,1000*a*d));
+// console.log(compute_relative_angle(C,));
 ctx.beginPath();
-ctx.moveTo(q1[0],q1[1]);
-ctx.lineTo(q1[2],q1[3]);
-ctx.moveTo(q2[0],q2[1]);
-ctx.lineTo(q2[2],q2[3]);
-ctx.stroke();
-MARGIN_LINE_LINE = 0;
-console.log(check_line_line_collision(q2,q1));
+ctx.moveTo(q[0],q[1]);
+ctx.lineTo(q[2],q[3]);
+ctx.stroke()
+ctx.fillRect(W/2,H/2,5,5)
+
+// q1 = [290.8431081351693, 565.1337358075122, 217.18540567155648, 303.4285523716361]
+// q2 = [424.49916960205434, 294.9458689953737, 262.51296829261156, 519.0522631042724]
+//
+// ctx.beginPath();
+// ctx.moveTo(q1[0],q1[1]);
+// ctx.lineTo(q1[2],q1[3]);
+// ctx.moveTo(q2[0],q2[1]);
+// ctx.lineTo(q2[2],q2[3]);
+// ctx.stroke();
+// MARGIN_LINE_LINE = 0;
+// console.log(check_line_line_collision(q2,q1));
 
 //
 //

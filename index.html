@@ -106,21 +106,21 @@ Your browser does not support the HTML5 canvas tag.</canvas>
                 collide = check_self_collisions_curve(what, i, true);
             }
             else{
-                console.log("CONTROLLING line", i, what[1]);
+                // console.log("CONTROLLING line", i, what[1]);
                 collide = check_self_collisions_straight(what, i, true);
             }
             if(collide>=0 && collide != (i+1)%track_history.length){
                 var what2 = track_history[collide];
                 if(what[0] == "curve" && what2[0] == "straight"){
-                    console.log("Collision", what[0], i, track_history[collide][0],collide);
+                    // console.log("Collision", what[0], i, track_history[collide][0],collide);
                     return true;
                 }
                 else if(what[0] == "straight" && what2[0] == "curve"){
-                    console.log("Collision", what[0], i, track_history[collide][0],collide);
+                    // console.log("Collision", what[0], i, track_history[collide][0],collide);
                     return true;
                 }
                 else if(what[0] == "straight" && what2[0] == "straight"){
-                    console.log("Collision", what[0], i, track_history[collide][0],collide);
+                    // console.log("Collision", what[0], i, track_history[collide][0],collide);
                     return true;
                 }
 
@@ -194,9 +194,9 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         var qy = q[3] - q[1];
         var px = p[0] - q[0];
         var py = p[1] - q[1];
-        var slope = qx / qy; //inverse of slope actually, but doesnt matter
-        var Iy = (py + slope*px - 1) / (slope*slope);
-        var Ix = slope * Iy;
+        var slope = qy / qx; //inverse of slope actually, but doesnt matter
+        var Ix = (qx*px + qy*py) / (qx + qy*slope);
+        var Iy = slope*Ix;
         Ix += q[0];
         Iy += q[1];
         return [Ix,Iy];
@@ -301,7 +301,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
                     var what = track_history[i];
                     if( what[0] == "straight"){
                         var qg = what[2];
-                        console.log("       against line", i);
+                        // console.log("       against line", i);
                         var result = check_line_line_collision(qf,qg);
                     }
                     else{
@@ -395,11 +395,13 @@ Your browser does not support the HTML5 canvas tag.</canvas>
     }
 
     function draw_track(th){ // th is track history
+        var centerline = [];
         console.log("DRAWING", th);
         current_orientation = compute_first_orientation(th);
         x = th[th.length-1][2][2];
         y = th[th.length-1][2][3];
-        console.log("orientation set to", current_orientation);
+        centerline.push([x,y]);
+        // console.log("orientation set to", current_orientation);
         // current_orientation = [1,0];
         // x = START[0];
         // y = START[1];
@@ -425,7 +427,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
             ctx.stroke();
             x = new_pos[0];
             y = new_pos[1];
-            console.log("       (x,y) = ",x,y);
+            // console.log("       (x,y) = ",x,y);
             current_orientation = new_orientation;
         }
         //drawing = false;
@@ -439,7 +441,6 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 
     function update_track(){
         var what = random_choice(POSSIBILITIES);
-        console.log(what);
         var new_pos = [];
         var new_orientation = [];
         var to_insert;
@@ -454,7 +455,10 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         }
         else if(what == "curve"){
             var radius = get_rand(MIN_CURVE_RADIUS, MAX_CURVE_RADIUS);
-            var side = random_choice([PI/2, -PI/2]);
+            var side = -PI/2;
+            if(get_rand(0,1) < PROB_COUNTERCLOCKWISE_TURN)
+                side *= -1;
+            // var side = random_choice([PI/2, -PI/2]);
             var delta_angle = get_rand(MIN_CURVE_ANGLE, MAX_CURVE_ANGLE);
             var data = make_curve(radius, side, delta_angle);
             new_pos[0] = data[0];
@@ -465,19 +469,59 @@ Your browser does not support the HTML5 canvas tag.</canvas>
             to_insert = ["curve", radius, side, delta_angle, center, start_angle];
             collision = check_self_collisions_curve(to_insert, current_i, false);
         }
-        var in_canvas = is_in_canvas(new_pos, MAX_CURVE_RADIUS + MARGIN_BORDER);
+        // var in_canvas = is_in_canvas(new_pos, MAX_CURVE_RADIUS + MARGIN_BORDER);
+        var in_canvas = true;
         if(in_canvas && collision<0){
-            console.log("(nx,ny)=",new_pos);
+            // console.log("(nx,ny)=",new_pos);
             x = new_pos[0];
             y = new_pos[1];
             current_orientation = new_orientation;
             track_history.push(to_insert);
         }
         else{
-            console.log("Not accepted");
+            // console.log("Not accepted");
             // track_history.pop();
         }
     }
+
+    // function try_update(what){
+    //     var new_pos = [];
+    //     var new_orientation = [];
+    //     var to_insert;
+    //     var collision;
+    //     var current_i = track_history.length;
+    //     if(what[0] == "straight"){
+    //         new_pos = make_straight(what[1]);
+    //         new_orientation = current_orientation;
+    //         to_insert = what;
+    //         collision = check_self_collisions_straight(to_insert, current_i, false);
+    //     }
+    //     else if(what[0] == "curve"){
+    //         var data = make_curve(what[1], what[2], what[3]);
+    //         new_pos[0] = data[0];
+    //         new_pos[1] = data[1];
+    //         new_orientation = data[2];
+    //         var center = data[3];
+    //         var start_angle = data[4];
+    //         to_insert = ["curve", what[1], what[2], what[3], center, start_angle];
+    //         collision = check_self_collisions_curve(to_insert, current_i, false);
+    //     }
+    //     // var in_canvas = is_in_canvas(new_pos, MAX_CURVE_RADIUS + MARGIN_BORDER);
+    //     var in_canvas = true;
+    //     if(in_canvas && collision<0){
+    //         console.log("(nx,ny)=",new_pos);
+    //         x = new_pos[0];
+    //         y = new_pos[1];
+    //         current_orientation = new_orientation;
+    //         track_history.push(to_insert);
+    //         return true;
+    //     }
+    //     else{
+    //         console.log("Not accepted");
+    //         // track_history.pop();
+    //         return false;
+    //     }
+    // }
 
 
     function add_to_track(what, i){
@@ -596,9 +640,110 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         add_to_track(["straight", get_rand(MIN_STRAIGTH_LENGTH, MAX_STRAIGTH_LENGTH)], "end");
     }
 
+    function chicane(){
+        add_to_track(["curve", 0, PI/2, get_rand(MIN_CURVE_ANGLE, PI/4)], "end");
+        add_to_track(["straight", get_rand(MIN_STRAIGTH_LENGTH, MAX_STRAIGTH_LENGTH)], "end");
+        //
+        var space_before = get_rand(0,1) < 0.5;
+        var space_after = get_rand(0,1) < 0.5;
+        var angle_factor = get_rand(0.1, 1);
+        var asymL = get_rand(0., 0.9);
+        var asymR = get_rand(0., 0.9);
+        var sizeL = get_rand(0.5, 2);
+        var sizeR = get_rand(1, 4);
+        var side = random_choice([1,-1]);
+        var L = sizeL*MIN_STRAIGTH_LENGTH;
+        var L1 = get_rand((1.-asymL)*L, (1+asymL)*L);
+        var L2 = get_rand((1.-asymL)*L, (1+asymL)*L);
+        var R = sizeR*MIN_CURVE_RADIUS;
+        var R1 = get_rand((1.-asymR)*R, (1+asymR)*R);
+        var R2 = get_rand((1.-asymR)*R, (1+asymR)*R);
+        var R3 = get_rand((1.-asymR)*R, (1+asymR)*R);
+        R1 = Math.max(R1, MIN_CURVE_RADIUS);
+        R2 = Math.max(R2, MIN_CURVE_RADIUS);
+        R3 = Math.max(R3, MIN_CURVE_RADIUS);
+        if(space_before)
+            add_to_track(["straight", get_rand(0.3, 1)*MAX_STRAIGTH_LENGTH], "end");
+        add_to_track(["curve", R1, side*PI/2, angle_factor*MAX_CURVE_ANGLE/2], "end");
+        add_to_track(["straight", L1], "end");
+        add_to_track(["curve", R2, -side*PI/2, angle_factor*MAX_CURVE_ANGLE], "end");
+        add_to_track(["straight", L2], "end");
+        add_to_track(["curve", R2, side*PI/2, angle_factor*MAX_CURVE_ANGLE/2], "end");
+        if(space_after)
+            add_to_track(["straight", get_rand(0.3, 1)*MAX_STRAIGTH_LENGTH], "end");
+        //
+        var angle = random_choice([-PI/2,PI/2]);
+        add_to_track(["curve", get_rand(MIN_CURVE_RADIUS, 2*MIN_CURVE_RADIUS), angle, get_rand(PI*0.6,PI*0.6)], "end");
+        add_to_track(["straight", get_rand(MIN_STRAIGTH_LENGTH, MAX_STRAIGTH_LENGTH)], "end");
+    }
+
+
+    function varying_radius_curve(factor){
+        add_to_track(["curve", 0, PI/2, get_rand(MIN_CURVE_ANGLE, PI/4)], "end");
+        add_to_track(["straight", get_rand(MIN_STRAIGTH_LENGTH, MAX_STRAIGTH_LENGTH)], "end");
+        //
+        //TODO: inverser des fois L1 et L2, et R1 R2 R3
+        var side = random_choice([1,-1]);
+        var R = get_rand(MAX_CURVE_RADIUS/10, MAX_CURVE_RADIUS/4);
+        if(factor > 1)
+             R = get_rand(MIN_CURVE_RADIUS, 3*MIN_CURVE_RADIUS);
+        var N = Math.floor(get_rand(2,5));
+        var tot_angle = get_rand(MAX_CURVE_ANGLE/8, MAX_CURVE_ANGLE);
+        var dangle = tot_angle / N;
+        for(var i=0; i<N; i++){
+            if(R < MIN_CURVE_RADIUS || R > MAX_CURVE_RADIUS)
+                break;
+            add_to_track(["curve", R, side*PI/2, dangle], "end");
+            R *= factor;
+        }
+        //
+        var angle = random_choice([-PI/2,PI/2]);
+        add_to_track(["curve", get_rand(MIN_CURVE_RADIUS, 2*MIN_CURVE_RADIUS), angle, get_rand(PI*0.6,PI*0.6)], "end");
+        add_to_track(["straight", get_rand(MIN_STRAIGTH_LENGTH, MAX_STRAIGTH_LENGTH)], "end");
+    }
+
+    function s_curves(){
+        add_to_track(["curve", 0, PI/2, get_rand(MIN_CURVE_ANGLE, PI/4)], "end");
+        add_to_track(["straight", get_rand(MIN_STRAIGTH_LENGTH, MAX_STRAIGTH_LENGTH)], "end");
+        //
+        //TODO: inverser des fois L1 et L2, et R1 R2 R3
+        var side = random_choice([1,-1]);
+        var N = Math.floor(get_rand(2,6));
+        for(var i=0; i<N; i++){
+            var R = get_rand(MAX_CURVE_RADIUS/4, MAX_CURVE_RADIUS);
+            var dangle = get_rand(MIN_CURVE_ANGLE*2, MIN_CURVE_ANGLE*4);
+            add_to_track(["curve", R, side*PI/2, dangle], "end");
+            side *= -1;
+        }
+        //
+        var angle = random_choice([-PI/2,PI/2]);
+        add_to_track(["curve", get_rand(MIN_CURVE_RADIUS, 2*MIN_CURVE_RADIUS), angle, get_rand(PI*0.6,PI*0.6)], "end");
+        add_to_track(["straight", get_rand(MIN_STRAIGTH_LENGTH, MAX_STRAIGTH_LENGTH)], "end");
+    }
+
+    function hairpin_curve(){
+        add_to_track(["curve", 0, PI/2, get_rand(MIN_CURVE_ANGLE, PI/4)], "end");
+        add_to_track(["straight", get_rand(MIN_STRAIGTH_LENGTH, MAX_STRAIGTH_LENGTH)], "end");
+        //
+        var side = random_choice([1,-1]);
+        var L1 = get_rand(MAX_STRAIGTH_LENGTH/3, MAX_STRAIGTH_LENGTH);
+        var L2 = get_rand(MAX_STRAIGTH_LENGTH/3, MAX_STRAIGTH_LENGTH);
+        var R = get_rand(MIN_CURVE_RADIUS, 1.1*MIN_CURVE_RADIUS);
+        var dangle = get_rand(0.9*PI, 1.1*PI);
+        add_to_track(["straight", L1],"end");
+        add_to_track(["curve", R, side*PI/2, dangle], "end");
+        add_to_track(["straight", L2], "end");
+        //
+        var angle = random_choice([-PI/2,PI/2]);
+        add_to_track(["curve", get_rand(MIN_CURVE_RADIUS, 2*MIN_CURVE_RADIUS), angle, get_rand(PI*0.6,PI*0.6)], "end");
+        add_to_track(["straight", get_rand(MIN_STRAIGTH_LENGTH, MAX_STRAIGTH_LENGTH)], "end");
+    }
+
+
     var POSSIBILITIES = ["straight", "curve"];
     var track_history;
-    var colors = ["yellow", "blue"];
+    // var colors = ["yellow", "blue"];
+    var colors = ["black"];
     ctx.lineWidth = "3";
     var drawing = false;
     var current_orientation = [1.,0.];
@@ -606,29 +751,34 @@ Your browser does not support the HTML5 canvas tag.</canvas>
     var START;
 
     // 1. Generate a base shape ////////////////////////////////////////////////
-    var nstart = 3;
-    var N_RANDOM_SECTION = 1;
+    var nstart = Math.floor(get_rand(3,7));
+    var MAX_N_RANDOM_SECTION = 4;
+    var MIN_N_RANDOM_SECTION = 0;
+    var PROB_SPECIAL_SECTION = 0.;
+    var RANDOM_SECTIONS = ["hairpin", "hairpin",
+                            "s", "s", "s",
+                            "varying", "varying", "varying",
+                            "chicane", "chicane", "chicane", "chicane"]
     var delta_angle = PI * 2. / nstart;
-    var dR = 0.6;
-    var dA = 0.25;
-    // var dR = 0.;
-    // var dA = 0.;
+    var dR = 0.3;
+    var dA = 0.5;
     var R = 150;
     var MAX_STRAIGTH_LENGTH = R/3;
     var MIN_STRAIGTH_LENGTH = R/10;
-    var MIN_CURVE_RADIUS = R/20;
-    var MAX_CURVE_RADIUS = R;
+    var MIN_CURVE_RADIUS = R/30;
+    var MAX_CURVE_RADIUS = R/2;
     var MIN_CURVE_ANGLE = PI/10;
-    var MAX_CURVE_ANGLE = 0.75*PI;
-    var SMOOTH_MIN_RADIUS_FACTOR = 0.7;
-    var SMOOTH_MAX_RADIUS_FACTOR = 0.7;
-    // var SMOOTH_MIN_RADIUS_FACTOR = 0.5;
-    // var SMOOTH_MAX_RADIUS_FACTOR = 0.5;
+    var MAX_CURVE_ANGLE = 0.9*PI;
+    var SMOOTH_MIN_RADIUS_FACTOR = 0.9;
+    var SMOOTH_MAX_RADIUS_FACTOR = 0.9;
+    var PROB_COUNTERCLOCKWISE_TURN = 0.1;
 
     var MARGIN_LINE_LINE = R/10;
     var MARGIN_CURVE_CURVE = R/10;
     var MARGIN_BORDER = R/10;
     var MARGIN_CURVE_LINE = R/10;
+
+
 
     function generate_track(){
         track_history = [];
@@ -648,7 +798,23 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         x = START[0];
         y = START[1];
         for(var i=0; i<nstart-1; i++){
-            random_section(N_RANDOM_SECTION);
+            if(get_rand(0,1) < PROB_SPECIAL_SECTION){
+                var choice = random_choice(RANDOM_SECTIONS);
+                if(choice == "hairpin")
+                    hairpin_curve();
+                if(choice == "s")
+                    s_curves();
+                if(choice == "varying")
+                    varying_radius_curve(0.5);
+                if(choice == "chicane")
+                    chicane();
+                else
+                    throw "unknown special section";
+            }
+            else{
+                var n = Math.floor(get_rand(MIN_N_RANDOM_SECTION, MAX_N_RANDOM_SECTION));
+                random_section(n);
+            }
             var s = ["osef","osef",[x,y,points[i+1][0],points[i+1][1]]];
             if(check_self_collisions_straight(s,track_history.length)>0,false)
                 return false;
@@ -672,57 +838,39 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         return true;
     }
 
+    var itrials = 0;
     for(var i=0; i<1000; i++){
         var t = generate_track();
         if(t){
             var ci = control_collisions();
             if (!ci){
                 console.log("Track generated after", i, "trials");
+                itrials = i;
                 break;
             }
         }
     }
     if(t){
         draw_track(track_history);
-        ctx.fillRect(START[0], START[1], 6,6);
+        // ctx.fillRect(START[0], START[1], 6,6);
         // for(var i =0;i<points.length;i++)
         //     ctx.fillRect(points[i][0], points[i][1], 3,3);
         console.log("Number of track elements = ", track_history.length);
 
-        // a = [291.97358524848494, 447.65369477247265, 143.052872449705, 454.1684666593738]
-        // b = [[111.39R/10955515698, 271.6919428149734, 97.61969R/106926769, 244.44794294659837]]
-        // console.log("ALLO",check_line_line_collision(a,b));
     }
     else
         console.log("FAIL");
 
+    //TODO: supprimer in_canvas et recentrer circuit apres coup
 
-    //TODO: controle post-generation des collisions
-
-    //TODO: pk curve_line marche tj pas ?
-    //TODO: rajouter margin a curve line
-
-    //TODO: parametriser longueur des random section : petites random sections et grand polygone de base
+    //TODO: controle post-generation des collisions : par "pixels" au moment du stl
+    //SEULEMENT SI BESOIN :
     //TODO: vecteur de "force" (proba gaussienne centre sur un angle) qui va de la bissectrice en debut de sections
         // au vecteur colineaire en fin de section
-        //TODO: favoriser les angles clockwise d'un certain facteur pour defavoriser les huit
         //TODO: heuristique : interdire de se rapprocher trop du centre du polygone de base
-    //TODO: au moment du smooth, si ca implique une courbure trop petite, rajouter au bol des virages+droites ;
-    // ou plutot, si point trop pres du prochain point cible, refaire un petit random section
 
-    //TODO: distributions et sequences (chicanes, spirales, anguleux, serpent)
-
-    // var curve = ["curve", 12.18985460035624, -1.5707963267948966, 1.8849555921538759,  [345.0413652254319, 142.54462612160933], 2.022236281664257]
-    // var q = [352.31352454920204, 132.5082127846646, 392.4909932323976, 240.1428550953982];
-    //
-    // ctx.lineWidth = "1";
-    // ctx.arc(345.0413652254319, 142.54462612160933,12.18985460035624,0,2*PI);
-    // ctx.stroke();
-    // ctx.fillRect(q[0],q[1],5,5);
-    // ctx.fillRect(q[2],q[3],5,5);
-    // console.log(check_curve_line_collision(curve,q))
-    console.log("SEED",seed);
-    control_collisions();
+    // control_collisions();
+    console.log(itrials);
 </script>
 
 </body>
