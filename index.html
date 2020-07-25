@@ -138,6 +138,18 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         if(drawing){
             ctx.moveTo(x,y);
             ctx.lineTo(new_x, new_y);
+            if(STL_RES > 0){
+                var N = length / STL_RES;
+                var x1 = x;
+                var y1 = y;
+                for(var i=0; i<N; i++){
+                    // ctx.fillRect(x1,y1,4,4);
+                    centerline.push([x1,y1]);
+                    x1 += current_orientation[0] * STL_RES;
+                    y1 += current_orientation[1] * STL_RES;
+                }
+                centerline.push([new_x,new_y]);
+            }
         }
         return [new_x, new_y, x, y];
     }
@@ -369,10 +381,31 @@ Your browser does not support the HTML5 canvas tag.</canvas>
                 ctx.arc(cx,cy,radius,a1,a0);
             else
                 ctx.arc(cx,cy,radius,a0,a1);
+            //
+            if(STL_RES > 0){
+                var N = radius * Math.abs(delta_angle) / STL_RES;
+                var x1 = x;
+                var y1 = y;
+                var rstl = [-to_radius[0]*radius, -to_radius[1]*radius];
+                var delta_angle_stl = delta_angle / N;
+                // ctx.fillRect(cx,cy,2,2);
+                // ctx.fillRect(x-rstl[0], y-rstl[1], 3,3) // correct
+                for(var i=0; i<N; i++){
+                    // ctx.arc(x1,y1,3,0,2*PI);
+                    // ctx.stroke();
+                    // ctx.fillRect(x1,y1,4,4);
+                    centerline.push([x1,y1]);
+                    rstl = get_rotated_vector(rstl, delta_angle_stl);
+                    x1 = cx + rstl[0];
+                    y1 = cy + rstl[1];
+                }
+            }
         }
         var new_orientation = get_rotated_vector(current_orientation, delta_angle);
         var new_x = cx + radius*Math.cos(a1);
         var new_y = cy + radius*Math.sin(a1);
+        if(STL_RES > 0 && drawing)
+            centerline.push([new_x,new_y]);
         return [new_x, new_y, new_orientation, [cx,cy], -a0];
     }
 
@@ -394,8 +427,8 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         }
     }
 
+    var centerline = [];
     function draw_track(th){ // th is track history
-        var centerline = [];
         console.log("DRAWING", th);
         current_orientation = compute_first_orientation(th);
         x = th[th.length-1][2][2];
@@ -440,7 +473,9 @@ Your browser does not support the HTML5 canvas tag.</canvas>
     }
 
     function update_track(){
-        var what = random_choice(POSSIBILITIES);
+        var what = "straight";
+        if(get_rand(0,1)<PROB_CURVE)
+            what = "curve";
         var new_pos = [];
         var new_orientation = [];
         var to_insert;
@@ -603,12 +638,6 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         var lambda = (vP[0]*a_x + vP[1]*a_y) / (a_x*a_x + a_y*a_y);
         var A = [lambda*a_x + cx, lambda*a_y + cy];
         //////////////////////////////////////////////////////////////////////
-        // ctx.fillRect(before[2][2], before[2][3],12,12);
-        // ctx.fillRect(after[2][2], after[2][3],12,12);
-        // ctx.fillRect(B[0], B[1], 8,8);
-        // ctx.fillRect(A[0], A[1], 8,8);
-        // ctx.fillRect(cx, cy, 5,5);
-        // ctx.fillRect(P[0], P[1], 8,8);
         ////////////////////////////////////////////////////////////////////////
         before[1] = compute_distance(B, [before[2][0], before[2][1]]); // new length
         before[2] = [before[2][0], before[2][1], B[0], B[1]];
@@ -739,50 +768,8 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         add_to_track(["straight", get_rand(MIN_STRAIGTH_LENGTH, MAX_STRAIGTH_LENGTH)], "end");
     }
 
-
-    var POSSIBILITIES = ["straight", "curve"];
-    var track_history;
-    // var colors = ["yellow", "blue"];
-    var colors = ["black"];
-    ctx.lineWidth = "3";
-    var drawing = false;
-    var current_orientation = [1.,0.];
-    var x, y;
-    var START;
-
-    // 1. Generate a base shape ////////////////////////////////////////////////
-    var nstart = Math.floor(get_rand(3,7));
-    var MAX_N_RANDOM_SECTION = 4;
-    var MIN_N_RANDOM_SECTION = 0;
-    var PROB_SPECIAL_SECTION = 0.;
-    var RANDOM_SECTIONS = ["hairpin", "hairpin",
-                            "s", "s", "s",
-                            "varying", "varying", "varying",
-                            "chicane", "chicane", "chicane", "chicane"]
-    var delta_angle = PI * 2. / nstart;
-    var dR = 0.3;
-    var dA = 0.5;
-    var R = 150;
-    var MAX_STRAIGTH_LENGTH = R/3;
-    var MIN_STRAIGTH_LENGTH = R/10;
-    var MIN_CURVE_RADIUS = R/30;
-    var MAX_CURVE_RADIUS = R/2;
-    var MIN_CURVE_ANGLE = PI/10;
-    var MAX_CURVE_ANGLE = 0.9*PI;
-    var SMOOTH_MIN_RADIUS_FACTOR = 0.9;
-    var SMOOTH_MAX_RADIUS_FACTOR = 0.9;
-    var PROB_COUNTERCLOCKWISE_TURN = 0.1;
-
-    var MARGIN_LINE_LINE = R/10;
-    var MARGIN_CURVE_CURVE = R/10;
-    var MARGIN_BORDER = R/10;
-    var MARGIN_CURVE_LINE = R/10;
-
-
-
     function generate_track(){
         track_history = [];
-
         // 1. Create base shape ////////////////////////////////////////////////
         var v = [1,0];
         points = [];
@@ -838,6 +825,48 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         return true;
     }
 
+
+    var track_history;
+    // var colors = ["yellow", "blue"];
+    var colors = ["black"];
+    ctx.lineWidth = "1";
+    var drawing = false;
+    var current_orientation = [1.,0.];
+    var x, y;
+    var START;
+    var nstart = Math.floor(get_rand(3,7));
+
+
+    //User defined avariables
+    var PROB_CURVE = 0.8;
+    var MAX_N_RANDOM_SECTION = 4;
+    var MIN_N_RANDOM_SECTION = 0;
+    var PROB_SPECIAL_SECTION = 0.;
+    var RANDOM_SECTIONS = ["hairpin", "hairpin",
+                            "s", "s", "s",
+                            "varying", "varying", "varying",
+                            "chicane", "chicane", "chicane", "chicane"]
+    var delta_angle = PI * 2. / nstart;
+    var dR = 0.3;
+    var dA = 0.5;
+    var R = 150;
+    var MAX_STRAIGTH_LENGTH = R/3;
+    var MIN_STRAIGTH_LENGTH = R/10;
+    var MIN_CURVE_RADIUS = R/30;
+    var MAX_CURVE_RADIUS = R/2;
+    var MIN_CURVE_ANGLE = PI/10;
+    var MAX_CURVE_ANGLE = 0.9*PI;
+    var SMOOTH_MIN_RADIUS_FACTOR = 0.9;
+    var SMOOTH_MAX_RADIUS_FACTOR = 0.9;
+    var PROB_COUNTERCLOCKWISE_TURN = 0.1;
+
+    var MARGIN_LINE_LINE = R/10;
+    var MARGIN_CURVE_CURVE = R/10;
+    var MARGIN_BORDER = R/10;
+    var MARGIN_CURVE_LINE = R/10;
+
+    var STL_RES = 4;
+
     var itrials = 0;
     for(var i=0; i<1000; i++){
         var t = generate_track();
@@ -856,6 +885,13 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         // for(var i =0;i<points.length;i++)
         //     ctx.fillRect(points[i][0], points[i][1], 3,3);
         console.log("Number of track elements = ", track_history.length);
+
+        // ctx.fillStyle = "blue";
+        console.log(centerline.length, centerline.length*STL_RES);
+        for(var i=0; i<centerline.length; i++){
+            var p = centerline[i];
+            ctx.fillRect(p[0],p[1],2,2);
+        }
 
     }
     else
