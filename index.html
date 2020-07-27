@@ -1,13 +1,16 @@
 <!DOCTYPE html>
 <html>
+<head>
+<link rel="stylesheet" type="text/css" href="style.css">
+</head>
 <body>
 
-<canvas id="myCanvas" width="600" height="600" style="border:1px solid #d3d3d3;">
+<canvas id="canvas2d" width="500" height="500">
 Your browser does not support the HTML5 canvas tag.</canvas>
 
 <script>
     var PI = Math.PI;
-    var c = document.getElementById("myCanvas");
+    var c = document.getElementById("canvas2d");
     var W = c.width;
     var H = c.height;
     var ctx = c.getContext("2d");
@@ -473,6 +476,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
             // console.log("       (x,y) = ",x,y);
             current_orientation = new_orientation;
         }
+        centerline.pop();
         //drawing = false;
     }
 
@@ -911,30 +915,49 @@ Your browser does not support the HTML5 canvas tag.</canvas>
     function generate_triangles(){
         var triangles = [];
         for(var i=0; i<centerline.length; i++){
-            var i_before = i-1;
-            if(i_before<0)
-                i_before = centerline.length-1;
-            var i_after = (i+1) % centerline.length;
-            var i_4 = (i+2) % centerline.length;
+            var i_before = i - 1;
+            var i_after = i + 1;
+            var i_after_after = i + 2;
+            if(i == 0)
+                i_before = centerline.length - 1;
+            if(i == centerline.length - 1){
+                i_after = 0;
+                i_after_after = 1;
+            }
+            if(i == centerline.length - 2){
+                i_after_after = 0;
+            }
             var p0 = centerline[i_before];
             var p1 = centerline[i];
             var p2 = centerline[i_after];
-            var p3 = centerline[i_4];
+            var p3 = centerline[i_after_after];
             //
             var bsc_here = get_bissection_for_stl(p0,p1,p2);
-            var bsc_next = get_bissection_for_stl(p1,p2,p3);§
+            var bsc_next = get_bissection_for_stl(p1,p2,p3);
             triangles.push([p1, p2, bsc_here]);
             triangles.push([bsc_here, p2, bsc_next]);
+
         }
         return triangles;
     }
 
-    function write_stl(triangles){//t is a list of triangles
+    function stl_triangle(s,n,v1,v2,v3){
+        s += "  facet normal " + n[0] + " " + n[1] + " " + n[2] + "\n";
+        s += "      outer loop\n";
+        s += "          vertex " + v3[0] + " " + v3[1] + " " + v3[2] + "\n";
+        s += "          vertex " + v2[0] + " " + v2[1] + " " + v2[2] + "\n";
+        s += "          vertex " + v1[0] + " " + v1[1] + " " + v1[2] + "\n";
+        s += "      endloop\n";
+        s += "  endfacet\n";
+        return s;
+    }
+
+    function get_stl_str(triangles, ground_z){//t is a list of triangles
         var xpoints = [];
         var ypoints = [];
         for(var i=0; i<centerline.length; i++){
             xpoints.push(centerline[i][0]);
-            ypoints.push(centerline[i][0]);
+            ypoints.push(centerline[i][1]);
         }
         var mx = Math.min(...xpoints);
         var Mx = Math.max(...xpoints);
@@ -942,20 +965,30 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         var My = Math.max(...ypoints);
         var dx = -mx -(Mx-mx)/2;
         var dy = -my -(My-my)/2;
+        console.log("DELTA", dx, dy);
         var s = "solid track\n";
         for(var i=0; i<triangles.length; i++){
             var t = triangles[i];
             var v1 = [t[0][0]+dx, t[0][1]+dy, 0];
             var v2 = [t[1][0]+dx, t[1][1]+dy, 0];
             var v3 = [t[2][0]+dx, t[2][1]+dy, 0];
-            var n = [0,0,1] //TODO: vectorial product
-            s += "  facet normal 0 0 1\n";
-            s += "      outer loop\n";
-            s += "          vertex " + v1[0] + " " + v1[1] + " " + v1[2] + "\n";
-            s += "          vertex " + v2[0] + " " + v2[1] + " " + v2[2] + "\n";
-            s += "          vertex " + v3[0] + " " + v3[1] + " " + v3[2] + "\n";
-            s += "      endloop\n";
-            s += "  endfacet\n";
+            var n = [0, 0, 0] //TODO: vectorial product
+            s = stl_triangle(s, n, v1, v2, v3);
+            // thickness (opposide side)
+            n = [n[0], n[1], -n[2]];
+            var v1b = [v1[0], v1[1], ground_z];
+            var v2b = [v2[0], v2[1], ground_z];
+            var v3b = [v3[0], v3[1], ground_z];
+            s = stl_triangle(s, n, v3b, v2b, v1b);
+            // thickness (vertical sides)
+            if(i%2 == 0){ //v3 is the bissection point
+                s = stl_triangle(s, [0,0,0], v1b, v2b, v2);
+                s = stl_triangle(s, [0,0,0], v1b, v2, v1);
+            }
+            else{ //v1 is bissection here, v3 is bissection next [bsc_here, p2, bsc_next]
+                s = stl_triangle(s, [0,0,0], v1b, v1, v3);
+                s = stl_triangle(s, [0,0,0], v1b, v3, v3b);
+            }
         }
         s += "endsolid track";
         return s;
@@ -972,6 +1005,12 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         element.click();
 
         document.body.removeChild(element);
+    }
+
+    function download_track(){
+        var t = generate_triangles();
+        var stl_str = get_stl_str(t, -10);
+        download('track.stl', stl_str);
     }
 
 
@@ -1001,7 +1040,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
     var R = 150;
     var MAX_STRAIGTH_LENGTH = R/3;
     var MIN_STRAIGTH_LENGTH = R/10;
-    var MIN_CURVE_RADIUS = R/20;
+    var MIN_CURVE_RADIUS = R/15;
     var MAX_CURVE_RADIUS = R/2;
     var MIN_CURVE_ANGLE = PI/10;
     var MAX_CURVE_ANGLE = 0.9*PI;
@@ -1038,7 +1077,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         ctx.clearRect(0, 0, W, H);
         centerline = [];
         draw_track(track_history);
-        // ctx.fillRect(START[0], START[1], 6,6);
+        ctx.fillRect(START[0], START[1], 6,6);
         // for(var i =0;i<points.length;i++)
         //     ctx.fillRect(points[i][0], points[i][1], 3,3);
         console.log("Number of track elements = ", track_history.length);
@@ -1064,15 +1103,27 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         //TODO: heuristique : interdire de se rapprocher trop du centre du polygone de base
 
     // control_collisions();
-    TRACK_WIDTH = 8;
+    TRACK_WIDTH = MIN_CURVE_RADIUS / 2;
     console.log(itrials);
-    var t = generate_triangles();
-    // console.log(t);
-    var stl_str = write_stl(t);
-    // console.log(stl_str);
-    download("track.stl",stl_str);
 
+    // console.log(t);
+
+    // console.log(stl_str);
 </script>
+
+<div id="scene3d"> </div>
+
+
+<script src="three.js"></script>
+<script src="stats.js"></script>
+<script src="detector.js"></script>
+<!-- <script src="orbit.js"></script> -->
+<script src="./render.js"></script>
+<!--
+A FAIRE:
+CONSTRUIRE GEOMETRY DIRECT (PAS PASSER PAR FICHIER)
+NE PAS AVOIR A METTRE UNE EPAISSEUR -->
+<button onclick="download_track();"> Download track </button>
 
 </body>
 </html>

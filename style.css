@@ -1,0 +1,16 @@
+#scene3d{
+    border: 1px solid;
+    max-width: 55%;
+    float: right;;
+}
+
+#canvas2d{
+    border: 1px solid;
+    max-width: 45%;
+    float: left;
+}
+
+body{
+    margin: auto;
+    padding: 10px;
+}
