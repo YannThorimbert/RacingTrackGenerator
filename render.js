@@ -205,7 +205,7 @@ function init() {
     //Detector.addGetWebGLMessage();
 
     scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 10000 );
+    camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 10000 );
     camera.position.z = 400;
     camera.position.y = 0;
     scene.add( camera );
@@ -213,7 +213,7 @@ function init() {
 
     // Create lights
     light = new THREE.PointLight(0xEEEEEE);
-    light.position.set(100, 100, 300);
+    light.position.set(100, 100, 400);
     scene.add(light);
 
     var lightAmb = new THREE.AmbientLight("0x777777");
@@ -280,9 +280,7 @@ function animate() {
 function render() {
 
     //mesh.rotation.x += 0.01;
-    // if (mesh) {
-    //     mesh.rotation.z += 0.05;
-    // }
+    mesh.rotation.z += 0.01;
     light.position.z -= 500;
 
     // controls.update();

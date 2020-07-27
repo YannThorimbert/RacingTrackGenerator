@@ -476,7 +476,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
             // console.log("       (x,y) = ",x,y);
             current_orientation = new_orientation;
         }
-        centerline.pop();
+        centerline.pop(); //last point is too close from first point usually
         //drawing = false;
     }
 
@@ -912,6 +912,13 @@ Your browser does not support the HTML5 canvas tag.</canvas>
             centerline.splice(i,1);
     }
 
+    function get3d(p, i){
+        var z = 20*(2 + Math.sin(i*2*PI/centerline.length)); //TODO : degree 3 polynomial
+        if(z < 0)
+            throw "CACA";
+        return [p[0], p[1], z];
+    }
+
     function generate_triangles(){
         var triangles = [];
         for(var i=0; i<centerline.length; i++){
@@ -934,6 +941,10 @@ Your browser does not support the HTML5 canvas tag.</canvas>
             //
             var bsc_here = get_bissection_for_stl(p0,p1,p2);
             var bsc_next = get_bissection_for_stl(p1,p2,p3);
+            p1 = get3d(p1,i);
+            p2 = get3d(p2,i_after);
+            bsc_here = get3d(bsc_here,i);
+            bsc_next = get3d(bsc_next,i_after);
             triangles.push([p1, p2, bsc_here]);
             triangles.push([bsc_here, p2, bsc_next]);
 
@@ -947,6 +958,9 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         s += "          vertex " + v3[0] + " " + v3[1] + " " + v3[2] + "\n";
         s += "          vertex " + v2[0] + " " + v2[1] + " " + v2[2] + "\n";
         s += "          vertex " + v1[0] + " " + v1[1] + " " + v1[2] + "\n";
+        // s += "          vertex " + v1[0] + " " + v1[1] + " " + v1[2] + "\n";
+        // s += "          vertex " + v2[0] + " " + v2[1] + " " + v2[2] + "\n";
+        // s += "          vertex " + v3[0] + " " + v3[1] + " " + v3[2] + "\n";
         s += "      endloop\n";
         s += "  endfacet\n";
         return s;
@@ -969,9 +983,9 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         var s = "solid track\n";
         for(var i=0; i<triangles.length; i++){
             var t = triangles[i];
-            var v1 = [t[0][0]+dx, t[0][1]+dy, 0];
-            var v2 = [t[1][0]+dx, t[1][1]+dy, 0];
-            var v3 = [t[2][0]+dx, t[2][1]+dy, 0];
+            var v1 = [t[0][0]+dx, t[0][1]+dy, t[0][2]];
+            var v2 = [t[1][0]+dx, t[1][1]+dy, t[1][2]];
+            var v3 = [t[2][0]+dx, t[2][1]+dy, t[2][2]];
             var n = [0, 0, 0] //TODO: vectorial product
             s = stl_triangle(s, n, v1, v2, v3);
             // thickness (opposide side)
