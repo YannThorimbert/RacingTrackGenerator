@@ -13,11 +13,11 @@ Your browser does not support the HTML5 canvas tag.</canvas>
     var ctx = c.getContext("2d");
     ctx.beginPath();
 
-    var seed = 193;
-    function rand(){ //fake rand
-        var x = Math.sin(seed++) * 10000;
-        return x - Math.floor(x);
-    }
+    // var seed = 193;
+    // function rand(){ //fake rand
+    //     var x = Math.sin(seed++) * 10000;
+    //     return x - Math.floor(x);
+    // }
     function rand(){
         return Math.random();
     }
@@ -73,7 +73,10 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         return [v[0]/L, v[1]/L];
     }
 
+
     function compute_relative_angle(v1,v2){
+        if(close_numbers(v1[0]/v1[1],v2[0]/v2[1]))
+            return 0;
         var Lv1 = compute_norm(v1);
         var Lv2 = compute_norm(v2);
         var cos_t = (v1[0]*v2[0] + v1[1]*v2[1]) / (Lv1*Lv2);
@@ -132,6 +135,13 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         return false;
     }
 
+    function add_to_centerline(p){
+        var tolerance = STL_RES / 2;
+        var last = centerline.length - 1;
+        if(compute_distance(centerline[last], p) > tolerance)
+            centerline.push(p);
+    }
+
     function make_straight(length){
         var new_x = x + current_orientation[0] * length;
         var new_y = y + current_orientation[1] * length;
@@ -144,11 +154,11 @@ Your browser does not support the HTML5 canvas tag.</canvas>
                 var y1 = y;
                 for(var i=0; i<N; i++){
                     // ctx.fillRect(x1,y1,4,4);
-                    centerline.push([x1,y1]);
+                    add_to_centerline([x1,y1]);
                     x1 += current_orientation[0] * STL_RES;
                     y1 += current_orientation[1] * STL_RES;
                 }
-                centerline.push([new_x,new_y]);
+                add_to_centerline([new_x,new_y]);
             }
         }
         return [new_x, new_y, x, y];
@@ -383,7 +393,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
                 ctx.arc(cx,cy,radius,a0,a1);
             //
             if(STL_RES > 0){
-                var N = radius * Math.abs(delta_angle) / STL_RES;
+                var N = Math.floor(radius * Math.abs(delta_angle) / STL_RES)+1;
                 var x1 = x;
                 var y1 = y;
                 var rstl = [-to_radius[0]*radius, -to_radius[1]*radius];
@@ -394,7 +404,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
                     // ctx.arc(x1,y1,3,0,2*PI);
                     // ctx.stroke();
                     // ctx.fillRect(x1,y1,4,4);
-                    centerline.push([x1,y1]);
+                    add_to_centerline([x1,y1]);
                     rstl = get_rotated_vector(rstl, delta_angle_stl);
                     x1 = cx + rstl[0];
                     y1 = cy + rstl[1];
@@ -405,7 +415,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         var new_x = cx + radius*Math.cos(a1);
         var new_y = cy + radius*Math.sin(a1);
         if(STL_RES > 0 && drawing)
-            centerline.push([new_x,new_y]);
+            add_to_centerline([new_x,new_y]);
         return [new_x, new_y, new_orientation, [cx,cy], -a0];
     }
 
@@ -445,7 +455,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
             ctx.beginPath();
             ctx.strokeStyle = colors[i%colors.length];
             var what = th[i];
-            console.log(i, "drawing", what);
+            // console.log(i, "drawing", what);
             // display(what);
             if(what[0] == "straight"){
                 new_pos = make_straight(what[1]);
@@ -789,14 +799,14 @@ Your browser does not support the HTML5 canvas tag.</canvas>
                 var choice = random_choice(RANDOM_SECTIONS);
                 if(choice == "hairpin")
                     hairpin_curve();
-                if(choice == "s")
+                else if(choice == "s")
                     s_curves();
-                if(choice == "varying")
+                else if(choice == "varying")
                     varying_radius_curve(0.5);
-                if(choice == "chicane")
+                else if(choice == "chicane")
                     chicane();
                 else
-                    throw "unknown special section";
+                    throw "unknown special section " + choice;
             }
             else{
                 var n = Math.floor(get_rand(MIN_N_RANDOM_SECTION, MAX_N_RANDOM_SECTION));
@@ -825,6 +835,145 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         return true;
     }
 
+    function stl_collide(){
+        return false;
+        // var track_width = 40;
+        // var tol = Math.floor(track_width / STL_RES);
+        // var L = centerline.length;
+        // console.log("STL COLLIDE", L)
+        // for (var i=0; i<L-1; i++){
+        //     for (var j=i+1; j<L; j++){
+        //         var far = j - i > tol;
+        //         var far2 = i + (L-j) > tol;
+        //         if(far && far2){
+        //             var d = compute_distance(centerline[i],centerline[j]);
+        //             if(d < track_width){
+        //                 console.log("STL COLLIDE FAIL")
+        //                 return true;
+        //             }
+        //         }
+        //     }
+        // }
+        // console.log("STL COLLIDE OK")
+        // return false;
+    }
+
+    function get_box(){
+        var xvals = [];
+        var yvals = [];
+        for(var i=0; i<centerline.length; i++){
+            xvals.push(centerline[i][0]);
+            yvals.push(centerline[i][1]);
+        }
+        return [Math.min(xvals), Math.max(xvals), Math.min(yvals), Math.max(yvals)];
+    }
+
+    function close_numbers(n1,n2){
+        var tolerance = 1e-8;
+        return Math.abs(n1-n2) < tolerance;
+    }
+
+    function get_bissection_for_stl(p0,p1,p2){
+        var v_before = [p1[0]-p0[0], p1[1]-p0[1]];
+        var v_after = [p2[0]-p1[0], p2[1]-p1[1]];
+        var angle = compute_relative_angle(v_before, v_after);
+        var counterclockwise = false;
+        if (angle > 0){
+            angle += 2*PI; //wtf i dont know why i need this...
+            counterclockwise = true;
+        }
+        angle = PI - angle;
+        var bissection = get_normalized(v_before);
+        bissection[0] *= TRACK_WIDTH;
+        bissection[1] *= TRACK_WIDTH;
+        if(counterclockwise)
+            bissection = get_rotated_vector(bissection, angle/2)
+        else
+            bissection = get_rotated_vector(bissection, -angle/2)
+        if(Number.isNaN(bissection[0]))
+            throw "problem again"
+        return [bissection[0] + p1[0], bissection[1] + p1[1]];
+    }
+
+    function control_stl(){
+        var tolerance = STL_RES / 10;
+        var to_delete = [];
+        for(var i=0; i<centerline.length-1; i++){
+            var p = centerline[i];
+            var q = centerline[i+1];
+            if(compute_distance(p,q)<tolerance)
+                    to_delete.push(i+1);
+        }
+        for(var i=to_delete.length-1; i>=0; i--)
+            centerline.splice(i,1);
+    }
+
+    function generate_triangles(){
+        var triangles = [];
+        for(var i=0; i<centerline.length; i++){
+            var i_before = i-1;
+            if(i_before<0)
+                i_before = centerline.length-1;
+            var i_after = (i+1) % centerline.length;
+            var i_4 = (i+2) % centerline.length;
+            var p0 = centerline[i_before];
+            var p1 = centerline[i];
+            var p2 = centerline[i_after];
+            var p3 = centerline[i_4];
+            //
+            var bsc_here = get_bissection_for_stl(p0,p1,p2);
+            var bsc_next = get_bissection_for_stl(p1,p2,p3);§
+            triangles.push([p1, p2, bsc_here]);
+            triangles.push([bsc_here, p2, bsc_next]);
+        }
+        return triangles;
+    }
+
+    function write_stl(triangles){//t is a list of triangles
+        var xpoints = [];
+        var ypoints = [];
+        for(var i=0; i<centerline.length; i++){
+            xpoints.push(centerline[i][0]);
+            ypoints.push(centerline[i][0]);
+        }
+        var mx = Math.min(...xpoints);
+        var Mx = Math.max(...xpoints);
+        var my = Math.min(...ypoints);
+        var My = Math.max(...ypoints);
+        var dx = -mx -(Mx-mx)/2;
+        var dy = -my -(My-my)/2;
+        var s = "solid track\n";
+        for(var i=0; i<triangles.length; i++){
+            var t = triangles[i];
+            var v1 = [t[0][0]+dx, t[0][1]+dy, 0];
+            var v2 = [t[1][0]+dx, t[1][1]+dy, 0];
+            var v3 = [t[2][0]+dx, t[2][1]+dy, 0];
+            var n = [0,0,1] //TODO: vectorial product
+            s += "  facet normal 0 0 1\n";
+            s += "      outer loop\n";
+            s += "          vertex " + v1[0] + " " + v1[1] + " " + v1[2] + "\n";
+            s += "          vertex " + v2[0] + " " + v2[1] + " " + v2[2] + "\n";
+            s += "          vertex " + v3[0] + " " + v3[1] + " " + v3[2] + "\n";
+            s += "      endloop\n";
+            s += "  endfacet\n";
+        }
+        s += "endsolid track";
+        return s;
+    }
+
+    function download(filename, text) {
+        var element = document.createElement('a');
+        element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+        element.setAttribute('download', filename);
+
+        element.style.display = 'none';
+        document.body.appendChild(element);
+
+        element.click();
+
+        document.body.removeChild(element);
+    }
+
 
     var track_history;
     // var colors = ["yellow", "blue"];
@@ -839,9 +988,9 @@ Your browser does not support the HTML5 canvas tag.</canvas>
 
     //User defined avariables
     var PROB_CURVE = 0.8;
-    var MAX_N_RANDOM_SECTION = 4;
+    var MAX_N_RANDOM_SECTION = 5;
     var MIN_N_RANDOM_SECTION = 0;
-    var PROB_SPECIAL_SECTION = 0.;
+    var PROB_SPECIAL_SECTION = 0.5;
     var RANDOM_SECTIONS = ["hairpin", "hairpin",
                             "s", "s", "s",
                             "varying", "varying", "varying",
@@ -852,7 +1001,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
     var R = 150;
     var MAX_STRAIGTH_LENGTH = R/3;
     var MIN_STRAIGTH_LENGTH = R/10;
-    var MIN_CURVE_RADIUS = R/30;
+    var MIN_CURVE_RADIUS = R/20;
     var MAX_CURVE_RADIUS = R/2;
     var MIN_CURVE_ANGLE = PI/10;
     var MAX_CURVE_ANGLE = 0.9*PI;
@@ -865,21 +1014,29 @@ Your browser does not support the HTML5 canvas tag.</canvas>
     var MARGIN_BORDER = R/10;
     var MARGIN_CURVE_LINE = R/10;
 
-    var STL_RES = 4;
+    var STL_RES = 3;
+    var NMAX_TRIALS = 10000;
 
     var itrials = 0;
-    for(var i=0; i<1000; i++){
+    var has_collisions;
+    for(var i=0; i<NMAX_TRIALS; i++){
         var t = generate_track();
         if(t){
-            var ci = control_collisions();
-            if (!ci){
-                console.log("Track generated after", i, "trials");
-                itrials = i;
-                break;
+            var has_collisions = control_collisions();
+            if (!has_collisions){
+                draw_track(track_history);
+                if(!stl_collide())
+                {
+                    console.log("Track generated after", i, "trials");
+                    itrials = i;
+                    break;
+                }
             }
         }
     }
-    if(t){
+    if(t && !has_collisions){
+        ctx.clearRect(0, 0, W, H);
+        centerline = [];
         draw_track(track_history);
         // ctx.fillRect(START[0], START[1], 6,6);
         // for(var i =0;i<points.length;i++)
@@ -887,6 +1044,7 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         console.log("Number of track elements = ", track_history.length);
 
         // ctx.fillStyle = "blue";
+        // control_stl();
         console.log(centerline.length, centerline.length*STL_RES);
         for(var i=0; i<centerline.length; i++){
             var p = centerline[i];
@@ -906,7 +1064,14 @@ Your browser does not support the HTML5 canvas tag.</canvas>
         //TODO: heuristique : interdire de se rapprocher trop du centre du polygone de base
 
     // control_collisions();
+    TRACK_WIDTH = 8;
     console.log(itrials);
+    var t = generate_triangles();
+    // console.log(t);
+    var stl_str = write_stl(t);
+    // console.log(stl_str);
+    download("track.stl",stl_str);
+
 </script>
 
 </body>

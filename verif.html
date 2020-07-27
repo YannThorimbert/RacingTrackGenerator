@@ -291,7 +291,14 @@ ctx.moveTo(q[0],q[1]);
 ctx.lineTo(q[2],q[3]);
 ctx.stroke()
 ctx.fillRect(W/2,H/2,5,5)
+ctx.closePath();
 
+ctx.beginPath();
+ctx.moveTo(100, 100);
+ctx.lineTo(100, 300);
+ctx.lineTo(300, 300);
+ctx.closePath();
+ctx.stroke();
 // q1 = [290.8431081351693, 565.1337358075122, 217.18540567155648, 303.4285523716361]
 // q2 = [424.49916960205434, 294.9458689953737, 262.51296829261156, 519.0522631042724]
 //
