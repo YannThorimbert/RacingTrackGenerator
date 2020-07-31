@@ -1,7 +1,13 @@
 
 
+// import { OrbitControls } from 'https://unpkg.com/three@<VERSION>/examples/jsm/controls/OrbitControls.js';
+// import * as THREE from 'https://unpkg.com/three';
+
+
+console.log("ENTER RENDER")
+
 var camera, scene, renderer,
-geometry, material, mesh, light, stats, controls;
+geometry, mesh, light, stats, controls;
 
 function trim (str) {
     str = str.replace(/^\s+/, '');
@@ -14,72 +20,7 @@ function trim (str) {
     return str;
 }
 
-// Notes:
-// - STL file format: http://en.wikipedia.org/wiki/STL_(file_format)
-// - 80 byte unused header
-// - All binary STLs are assumed to be little endian, as per wiki doc
-var parseStlBinary = function(stl) {
-    var geo = new THREE.Geometry();
-    var dv = new DataView(stl, 80); // 80 == unused header
-    var isLittleEndian = true;
-    var triangles = dv.getUint32(0, isLittleEndian);
 
-    // console.log('arraybuffer length:  ' + stl.byteLength);
-    // console.log('number of triangles: ' + triangles);
-
-    var offset = 4;
-    for (var i = 0; i < triangles; i++) {
-        // Get the normal for this triangle
-        var normal = new THREE.Vector3(
-            dv.getFloat32(offset, isLittleEndian),
-            dv.getFloat32(offset+4, isLittleEndian),
-            dv.getFloat32(offset+8, isLittleEndian)
-        );
-        offset += 12;
-
-        // Get all 3 vertices for this triangle
-        for (var j = 0; j < 3; j++) {
-            geo.vertices.push(
-                new THREE.Vector3(
-                    dv.getFloat32(offset, isLittleEndian),
-                    dv.getFloat32(offset+4, isLittleEndian),
-                    dv.getFloat32(offset+8, isLittleEndian)
-                )
-            );
-            offset += 12
-        }
-
-        // there's also a Uint16 "attribute byte count" that we
-        // don't need, it should always be zero.
-        offset += 2;
-
-        // Create a new face from the vertices and the normal
-        geo.faces.push(new THREE.Face3(i*3, i*3+1, i*3+2, normal));
-    }
-
-    // The binary STL I'm testing with seems to have all
-    // zeroes for the normals, unlike its ASCII counterpart.
-    // We can use three.js to compute the normals for us, though,
-    // once we've assembled our geometry. This is a relatively
-    // expensive operation, but only needs to be done once.
-    geo.computeFaceNormals(); //TODO: ENLEVER + tard ?
-
-    mesh = new THREE.Mesh(
-        geo,
-        // new THREE.MeshNormalMaterial({
-        //     overdraw:true
-        // }
-
-        new THREE.MeshLambertMaterial({
-            overdraw:true,
-            color: "rgba(0,255,0)",
-            shading: THREE.FlatShading
-        }
-    ));
-    scene.add(mesh);
-
-    stl = null;
-};
 
 var parseStl = function(stl) {
     var state = '';
@@ -157,15 +98,20 @@ var parseStl = function(stl) {
                 break;
             case 'endfacet':
                 if (parts[0] === 'endsolid') {
-                    // mesh = new THREE.Mesh( geo, new THREE.MeshNormalMaterial({overdraw:true}));
-                    mesh = new THREE.Mesh(
-                        geo,
-                        new THREE.MeshLambertMaterial({
-                            overdraw:true,
-                            color: new THREE.Color("rgb(0,255,0)"),
-                            shading: THREE.FlatShading
-                        }
-                    ));
+                    geo.computeFaceNormals(); //TODO: ENLEVER + tard ?
+                    var col = new THREE.Color("gray");
+                    // var material = new THREE.MeshLambertMaterial( { color:col} );
+                    // var material = new THREE.MeshPhongMaterial( {
+                    //     color: 0x996633,
+                    //     // envMap: envMap, // optional environment map
+                    //     specular: 0x050505,
+                    //     shininess: 100
+                    // } );
+                    var material = new THREE.MeshStandardMaterial({color: col});
+                    mesh = new THREE.Mesh( geo, material);
+                    mesh.material.shading = THREE.SmoothShading;
+                    // mesh.scale.x = -1;
+                    console.log("ICIIII");
                     scene.add(mesh);
                     done = true;
                 } else if (parts[0] === 'facet' && parts[1] === 'normal') {
@@ -193,6 +139,16 @@ var parseStl = function(stl) {
 
 function geometry_from_triangles(triangles){
     var t = generate_triangles();
+    var limits = get_limits();
+    var mx = limits[0];
+    var Mx = limits[1];
+    var my = limits[2];
+    var My = limits[3];
+    var dx = -mx -(Mx-mx)/2;
+    var dy = -my -(My-my)/2;
+    var box_t = get_box_triangles(mx-100,my-100,-10, Mx-mx+200,My-my+200,0,0);
+    for(var i=0; i<box_t.length; i++)
+        t.push(box_t[i]);
     var stl_str = get_stl_str(t, -10);
     parseStl(stl_str);
 }
@@ -203,20 +159,24 @@ animate();
 function init() {
 
     //Detector.addGetWebGLMessage();
-
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 10000 );
-    camera.position.z = 400;
-    camera.position.y = 0;
+    camera.position.z = 600;
+    camera.position.y = 100;
+    camera.lookAt (new THREE.Vector3(0,0,0));
     scene.add( camera );
 
 
-    // Create lights
-    light = new THREE.PointLight(0xEEEEEE);
-    light.position.set(100, 100, 400);
-    scene.add(light);
+    var light1 = new THREE.PointLight( 0x777777, 1.8, 0);
+    light1.position.set(-300, 200, 300);
+    scene.add(light1);
 
-    var lightAmb = new THREE.AmbientLight("0x777777");
+    var light2 = new THREE.DirectionalLight( 0x887777, 0.5);
+    light2.position.set( -1,1.6,1 ).normalize();
+    light2.castShadow = true;
+    scene.add(light2);
+    //
+    var lightAmb = new THREE.AmbientLight(0x777777, 1.6);
     scene.add(lightAmb);
 
     function load_stl(filename){
@@ -224,13 +184,12 @@ function init() {
         xhr.onreadystatechange = function () {
             if ( xhr.readyState == 4 ) {
                 if ( xhr.status == 200 || xhr.status == 0 ) {
-                    var rep = xhr.response; // || xhr.mozResponseArrayBuffer;
-                    console.log(rep);
-                    // parseStlBinary(rep);
+                    // console.log(xhr.response);
+                    // parseStlBinary(xhr.response);
                     // console.log(xhr.responseText);
                     parseStl(xhr.responseText);
-                    mesh.rotation.x = 5;
-                    mesh.rotation.z = .25;
+                    // mesh.rotation.x = 5;
+                    // mesh.rotation.z = .25;
                     console.log('done parsing');
                 }
             }
@@ -239,7 +198,7 @@ function init() {
             console.log(e);
         }
 
-        xhr.open( "GET", 'track.stl', true );
+        xhr.open( "GET", 'octocat.stl', true );
         // xhr.responseType = "arraybuffer";
         xhr.responseType = "text";
         //xhr.setRequestHeader("Accept","text/plain");
@@ -249,16 +208,27 @@ function init() {
     }
 
     geometry_from_triangles();
+    // load_stl("");
     mesh.rotation.x = 5;
     mesh.rotation.z = .25;
-    console.log('done parsing');
 
 
-    renderer = new THREE.WebGLRenderer({ alpha: true }); //new THREE.CanvasRenderer();
-    renderer.setSize( window.innerWidth/2, window.innerHeight/2 );
+    renderer = new THREE.WebGLRenderer({ alpha: true, antialias : true }); //new THREE.CanvasRenderer();
+    renderer.setSize( 0.7*window.innerWidth, 0.7*window.innerHeight );
     document.getElementById("scene3d").appendChild( renderer.domElement );
-    // controls = new THREE.FlyControls(camera, renderer.domElement );
+    renderer.setClearColor( 0x000000, 1 );
 
+    controls = new THREE.OrbitControls(camera, renderer.domElement );
+
+    controls.enableDamping = true; // an animation loop is required when either damping or auto-rotation are enabled
+	controls.dampingFactor = 0.1;
+
+	controls.screenSpacePanning = false;
+
+	controls.minDistance = 100;
+	controls.maxDistance = 1200;
+
+	controls.maxPolarAngle = Math.PI/2;
 
 
     //
@@ -281,9 +251,9 @@ function render() {
 
     //mesh.rotation.x += 0.01;
     mesh.rotation.z += 0.01;
-    light.position.z -= 500;
+    // light.position.z -= 500;
 
-    // controls.update();
+    controls.update();
     renderer.render( scene, camera );
 
 }

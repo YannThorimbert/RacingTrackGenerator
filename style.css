@@ -1,12 +1,13 @@
 #scene3d{
-    border: 1px solid;
-    max-width: 55%;
-    float: right;;
+    /* border: 1px solid; */
+    /* max-width: 60%;
+    height:100%; */
+    /* float: right; */
 }
 
 #canvas2d{
     border: 1px solid;
-    max-width: 45%;
+    /* max-width: 45%; */
     float: left;
 }
 
