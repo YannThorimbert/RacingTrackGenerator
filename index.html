@@ -9,6 +9,8 @@
 <canvas id="canvas2d" width="500" height="500">
 Your browser does not support the HTML5 canvas tag.</canvas>
 
+<!-- TODO : objet (et material) different pour le sol;
+sliders pour regenerer ==> regeneration sans reload de page. -->
 <script>
     var PI = Math.PI;
     var c = document.getElementById("canvas2d");
@@ -1215,9 +1217,13 @@ Your browser does not support the HTML5 canvas tag.</canvas>
  <script src="../three/three.js-master/build/three.js"></script>
 
  <script src="../three/three.js-master/examples/js/controls/OrbitControls.js"></script>
+ <script src="../three/three.js-master/examples/js/loaders/EXRLoader.js"></script>
+ <!-- <script src="../three/three.js-master/examples/js/pmrem/PMREMGenerator.js"></script> -->
+
+
 <!-- <script src="three@0.99.0/examples/js/controls/OrbitControls.js" ></script> -->
 
-<script src="./render.js"></script>
+<script src="./render.js" type="module"></script>
 <!--
 A FAIRE:
 CONSTRUIRE GEOMETRY DIRECT (PAS PASSER PAR FICHIER)
