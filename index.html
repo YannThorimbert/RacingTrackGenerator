@@ -785,6 +785,24 @@ sliders pour regenerer ==> regeneration sans reload de page. -->
         add_to_track(["straight", get_rand(MIN_STRAIGTH_LENGTH, MAX_STRAIGTH_LENGTH)], "end");
     }
 
+    function k_curve(){
+        add_to_track(["curve", 0, PI/2, get_rand(MIN_CURVE_ANGLE, PI/4)], "end");
+        add_to_track(["straight", get_rand(MIN_STRAIGTH_LENGTH, MAX_STRAIGTH_LENGTH)], "end");
+        //
+        var side = random_choice([1,-1]);
+        var L1 = get_rand(MAX_STRAIGTH_LENGTH/6, MAX_STRAIGTH_LENGTH);
+        var L2 = get_rand(MAX_STRAIGTH_LENGTH/6, MAX_STRAIGTH_LENGTH);
+        var R = get_rand(MIN_CURVE_RADIUS*2, 4*MIN_CURVE_RADIUS);
+        var dangle = get_rand(0.9*PI/2, 1.1*PI/2);
+        add_to_track(["straight", L1],"end");
+        add_to_track(["curve", R, side*PI/2, dangle], "end");
+        add_to_track(["straight", L2], "end");
+        //
+        var angle = random_choice([-PI/2,PI/2]);
+        add_to_track(["curve", get_rand(MIN_CURVE_RADIUS, 2*MIN_CURVE_RADIUS), angle, get_rand(PI*0.6,PI*0.6)], "end");
+        add_to_track(["straight", get_rand(MIN_STRAIGTH_LENGTH, MAX_STRAIGTH_LENGTH)], "end");
+    }
+
     function generate_track(){
         track_history = [];
         // 1. Create base shape ////////////////////////////////////////////////
@@ -812,6 +830,8 @@ sliders pour regenerer ==> regeneration sans reload de page. -->
                     varying_radius_curve(0.5);
                 else if(choice == "chicane")
                     chicane();
+                else if(choice == "k")
+                    k_curve();
                 else
                     throw "unknown special section " + choice;
             }
@@ -897,8 +917,9 @@ sliders pour regenerer ==> regeneration sans reload de page. -->
             bissection = get_rotated_vector(bissection, angle/2)
         else
             bissection = get_rotated_vector(bissection, -angle/2)
-        if(Number.isNaN(bissection[0]))
-            throw "cannot find a bissection";
+        if(Number.isNaN(bissection[0])){
+            window.location.reload(false);
+        }
         return [bissection[0] + p1[0], bissection[1] + p1[1]];
     }
 
@@ -1111,7 +1132,8 @@ sliders pour regenerer ==> regeneration sans reload de page. -->
     var RANDOM_SECTIONS = ["hairpin", "hairpin",
                             "s", "s", "s",
                             "varying", "varying", "varying",
-                            "chicane", "chicane", "chicane", "chicane"]
+                            "chicane", "chicane", "chicane", "chicane",
+                            "k", "k"];
     var delta_angle = PI * 2. / nstart;
     var dR = 0.3;
     var dA = 0.5;
@@ -1223,7 +1245,8 @@ sliders pour regenerer ==> regeneration sans reload de page. -->
 
 <!-- <script src="three@0.99.0/examples/js/controls/OrbitControls.js" ></script> -->
 
-<script src="./render.js" type="module"></script>
+<script src="./drive.js"></script>
+<script src="./render.js"></script>
 <!--
 A FAIRE:
 CONSTRUIRE GEOMETRY DIRECT (PAS PASSER PAR FICHIER)

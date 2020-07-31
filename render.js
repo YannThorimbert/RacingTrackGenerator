@@ -177,7 +177,8 @@ function geometry_from_triangles(triangles){
     var My = limits[3];
     var dx = -mx -(Mx-mx)/2;
     var dy = -my -(My-my)/2;
-    var box_t = get_box_triangles(mx-100,my-100,-10, Mx-mx+200,My-my+200,0);
+    var box_t = get_box_triangles(mx-100,my-100,-10, Mx-mx+200,My-my+200,10);
+    // var box_t = get_box_triangles(START[0],START[1],0, 20,20,20);
     var stl_box = get_stl_str(box_t, -10);
     var colb = new THREE.Color("green");
     var materialb = new THREE.MeshStandardMaterial({color: colb});
@@ -299,9 +300,9 @@ function init() {
 
 function animate() {
 
-    // note: three.js includes requestAnimationFrame shim
     requestAnimationFrame( animate );
     render();
+    // drive_render();
     // stats.update();
 
 }
@@ -318,3 +319,8 @@ function render() {
     renderer.render( scene, camera );
 
 }
+
+// var p0 = new THREE.Vector3(START[0],START[1],0);
+// var axis = new THREE.Vector3(1,0,0);
+// p0.applyAxisAngle(axis,-PI/2);
+// go_to(p0[0],p0[1],p0[2]);
